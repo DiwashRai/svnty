@@ -3,18 +3,21 @@ package app
 import (
 	"github.com/DiwashRai/svnty/info"
 	"github.com/DiwashRai/svnty/svn"
+	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Model struct {
 	SvnService svn.Service
+	Logger     *slog.Logger
 	InfoModel  info.Model
 }
 
-func New(svc svn.Service) Model {
+func New(svc svn.Service, logger *slog.Logger) Model {
 	return Model{
 		SvnService: svc,
+		Logger:     logger,
 		InfoModel:  info.Model{SvnService: svc},
 	}
 }
@@ -31,7 +34,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 	case tea.KeyMsg:
-		switch msg.String() {
+		keyStr := msg.String()
+		m.Logger.Info(keyStr)
+		switch keyStr {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
