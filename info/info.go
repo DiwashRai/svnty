@@ -1,6 +1,7 @@
 package info
 
 import (
+	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/charmbracelet/lipgloss"
 	"strconv"
@@ -10,7 +11,6 @@ import (
 
 type Model struct {
 	SvnService svn.Service
-	RepoInfo   svn.RepoInfo
 }
 
 func New(svc svn.Service) Model {
@@ -26,13 +26,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
+	info := m.SvnService.CurrentInfo()
+	wp, url, rev := info.WorkingPath, info.RemoteURL, strconv.FormatUint(uint64(info.Revision), 10)
+
 	return lipgloss.NewStyle().PaddingTop(1).PaddingLeft(2).Render(lipgloss.JoinVertical(
 		lipgloss.Top,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("30")).
-			Render("Working path: ", m.SvnService.CurrentInfo().WorkingPath),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("125")).
-			Render("Remote url: ", m.SvnService.CurrentInfo().RemoteURL),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("74")).
-			Render("Revision: ", strconv.FormatUint(uint64(m.SvnService.CurrentInfo().Revision), 10)),
+		styles.InfoHeading.Render(" Working path: ")+" "+styles.InfoStr.Render(wp),
+		styles.InfoHeading.Render(" Remote URL:   ")+" "+styles.InfoStr.Render(url),
+		styles.InfoHeading.Render(" Revision:     ")+" "+styles.Number.Render(rev),
 	))
 }

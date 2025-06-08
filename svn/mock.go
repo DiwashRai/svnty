@@ -15,6 +15,10 @@ func (svc *MockService) FetchInfo() error {
 	return nil
 }
 
+func (svc *MockService) CurrentStatus() *RepoStatus {
+	return nil
+}
+
 func (svc *MockService) FetchStatus() error {
 	return nil
 }

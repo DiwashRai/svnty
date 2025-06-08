@@ -32,6 +32,7 @@ func main() {
 		svc = &realSvc
 	}
 
+	svc.FetchStatus()
 	model := app.New(svc, rootLogger)
 
 	p := tea.NewProgram(&model, tea.WithAltScreen())

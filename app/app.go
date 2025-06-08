@@ -2,23 +2,27 @@ package app
 
 import (
 	"github.com/DiwashRai/svnty/info"
+	"github.com/DiwashRai/svnty/status"
 	"github.com/DiwashRai/svnty/svn"
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Model struct {
-	SvnService svn.Service
-	Logger     *slog.Logger
-	InfoModel  info.Model
+	SvnService  svn.Service
+	Logger      *slog.Logger
+	InfoModel   info.Model
+	StatusModel status.Model
 }
 
 func New(svc svn.Service, logger *slog.Logger) Model {
 	return Model{
-		SvnService: svc,
-		Logger:     logger,
-		InfoModel:  info.Model{SvnService: svc},
+		SvnService:  svc,
+		Logger:      logger,
+		InfoModel:   info.Model{SvnService: svc},
+		StatusModel: status.Model{SvnService: svc},
 	}
 }
 
@@ -46,5 +50,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
-	return m.InfoModel.View()
+	return lipgloss.JoinVertical(
+		lipgloss.Top,
+		m.InfoModel.View(),
+		m.StatusModel.View(),
+	)
 }

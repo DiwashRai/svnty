@@ -10,21 +10,17 @@ import (
 type Service interface {
 	CurrentInfo() RepoInfo
 	FetchInfo() error
+	CurrentStatus() *RepoStatus
 	FetchStatus() error
 }
 
 type RealService struct {
-	workingPath string
-	remoteURL   string
-	revision    uint32
+	RepoInfo   RepoInfo
+	RepoStatus RepoStatus
 }
 
 func (svc *RealService) CurrentInfo() RepoInfo {
-	return RepoInfo{
-		WorkingPath: svc.workingPath,
-		RemoteURL:   svc.remoteURL,
-		Revision:    svc.revision,
-	}
+	return svc.RepoInfo
 }
 
 func (svc *RealService) FetchInfo() error {
@@ -42,47 +38,178 @@ func (svc *RealService) FetchInfo() error {
 		return fmt.Errorf("error unmarshalling svn info: %w", err)
 	}
 
-	svc.workingPath = infoXML.Entry.WCInfo.WCAbspath
-	svc.remoteURL = infoXML.Entry.URL
-	svc.revision = infoXML.Entry.Revision
+	svc.RepoInfo.WorkingPath = infoXML.Entry.WCInfo.WCAbspath
+	svc.RepoInfo.RemoteURL = infoXML.Entry.URL
+	svc.RepoInfo.Revision = infoXML.Entry.Revision
 
 	return nil
 }
 
+func (svc *RealService) CurrentStatus() *RepoStatus {
+	return &svc.RepoStatus
+}
+
+func entryToPathStatus(entry StatusEntryXML) (PathStatus, error) {
+	statusRune, res := StatusToRune(entry.WCStatus.Status)
+	if !res {
+		err := fmt.Errorf("Invalid status %s in path %s", entry.WCStatus.Status, entry.Path)
+		return PathStatus{}, err
+	}
+	return PathStatus{Path: entry.Path, Status: statusRune}, nil
+}
+
 func (svc *RealService) FetchStatus() error {
+	svc.RepoStatus.Clear()
+
 	cmd := exec.Command(
 		"svn", "--non-interactive",
 		"status", "C:/Code/GitHub/textual-test/", "--xml")
 
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("Error running svn info: %w", err)
+		return fmt.Errorf("error running svn status: %w", err)
 	}
 
 	var statusXML StatusXML
 	if err := xml.Unmarshal(out, &statusXML); err != nil {
-		return fmt.Errorf("error unmarshalling svn info: %w", err)
+		return fmt.Errorf("error unmarshalling svn status: %w", err)
 	}
 
-	// TODO: Just print now to test parsing is correct
 	for _, entry := range statusXML.Target.Entries {
-		println(entry.Path, " - ", entry.WCStatus.Status)
+		ps, err := entryToPathStatus(entry)
+		if err != nil {
+			return err
+		}
+
+		switch entry.WCStatus.Status {
+		case "unversioned":
+			svc.RepoStatus.Append(SectionUnversioned, ps)
+		case "added", "deleted", "modified", "missing", "replaced":
+			svc.RepoStatus.Append(SectionUnstaged, ps)
+		case "conflicted", "external", "obstructed":
+			svc.RepoStatus.Append(SectionIssues, ps)
+		case "ignored":
+			svc.RepoStatus.Append(SectionIgnored, ps)
+		}
+	}
+
+	for _, cl := range statusXML.ChangeLists {
+		if cl.Name == "staged" {
+			for _, entry := range cl.Entries {
+				ps, err := entryToPathStatus(entry)
+				if err != nil {
+					return err
+				}
+				svc.RepoStatus.Append(SectionStaged, ps)
+			}
+		}
 	}
 
 	return nil
 }
 
+func StatusToRune(status string) (rune, bool) {
+	switch status {
+	case "added":
+		return 'A', true
+	case "conflicted":
+		return 'C', true
+	case "deleted":
+		return 'D', true
+	case "ignored":
+		return 'I', true
+	case "modified":
+		return 'M', true
+	case "replaced":
+		return 'R', true
+	case "external":
+		return 'X', true
+	case "unversioned":
+		return '?', true
+	case "missing":
+		return '!', true
+	case "obstructed":
+		return '~', true
+	default:
+		return ' ', false
+	}
+}
+
+type PathStatus struct {
+	Path   string
+	Status rune
+}
+
 // SVN STATUS XML Structs
+
+type Section int
+
+const (
+	SectionUnversioned Section = iota
+	SectionUnstaged
+	SectionStaged
+	SectionIgnored
+	SectionIssues
+
+	NumSections
+)
+
+var SectionTitles = []string{
+	"Unversioned",
+	"Unstaged",
+	"Staged",
+	"Ignored",
+	"Issues",
+}
+
 type RepoStatus struct {
+	Sections [NumSections][]PathStatus
+}
+
+func (rs *RepoStatus) Unversioned() []PathStatus {
+	return rs.Sections[SectionUnversioned]
+}
+
+func (rs *RepoStatus) Unstaged() []PathStatus {
+	return rs.Sections[SectionUnstaged]
+}
+
+func (rs *RepoStatus) Staged() []PathStatus {
+	return rs.Sections[SectionStaged]
+}
+
+func (rs *RepoStatus) Ignored() []PathStatus {
+	return rs.Sections[SectionIgnored]
+}
+
+func (rs *RepoStatus) Issues() []PathStatus {
+	return rs.Sections[SectionIssues]
+}
+
+func (rs *RepoStatus) Append(sec Section, ps PathStatus) {
+	rs.Sections[sec] = append(rs.Sections[sec], ps)
+}
+
+func (rs *RepoStatus) Clear() {
+	for i := range rs.Sections {
+		rs.Sections[i] = rs.Sections[i][:0]
+	}
 }
 
 type StatusXML struct {
-	XMLName xml.Name  `xml:"status"`
-	Target  TargetXML `xml:"target"`
+	XMLName     xml.Name        `xml:"status"`
+	Target      TargetXML       `xml:"target"`
+	ChangeLists []ChangeListXML `xml:"changelist"`
 }
 
 type TargetXML struct {
 	XMLName xml.Name         `xml:"target"`
+	Entries []StatusEntryXML `xml:"entry"`
+}
+
+type ChangeListXML struct {
+	XMLName xml.Name         `xml:"changelist"`
+	Name    string           `xml:"name,attr"`
 	Entries []StatusEntryXML `xml:"entry"`
 }
 
