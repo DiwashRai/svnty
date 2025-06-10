@@ -3,13 +3,14 @@ package status
 import (
 	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
-	"github.com/charmbracelet/lipgloss"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Model struct {
 	SvnService svn.Service
+	CursorIdx  int
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -22,12 +23,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) View() string {
 	var content string
+	var lineNum uint64
 	for i, section := range m.SvnService.CurrentStatus().Sections {
+		lnStr := strconv.FormatUint(lineNum, 10)
+		content += lnStr + " "
+		content += styles.Comment.Render("⯆ ")
 		content += styles.StatusSectionHeading.Render(svn.SectionTitles[i]) + "\n"
+		lineNum++
+
 		for _, ps := range section {
-			content += styles.InfoStr.Render(string(ps.Status)+" "+ps.Path) + "\n"
+			var line string
+			lnStr := strconv.FormatUint(lineNum, 10)
+			line += lnStr + "  "
+			if lineNum == 3 {
+				line += styles.Selected.Render("> " + string(ps.Status) + " " + ps.Path)
+			} else {
+				line += styles.Fg.Render("  " + string(ps.Status) + " " + ps.Path)
+			}
+			content += line + "\n"
+			lineNum++
 		}
 		content += "\n"
 	}
-	return lipgloss.NewStyle().PaddingTop(1).PaddingLeft(2).Render(content)
+	return styles.BaseStyle.
+		PaddingTop(1).
+		Render(content)
 }

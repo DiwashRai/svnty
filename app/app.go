@@ -3,7 +3,9 @@ package app
 import (
 	"github.com/DiwashRai/svnty/info"
 	"github.com/DiwashRai/svnty/status"
+	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
+	"github.com/DiwashRai/svnty/utils"
 	"log/slog"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,6 +17,8 @@ type Model struct {
 	Logger      *slog.Logger
 	InfoModel   info.Model
 	StatusModel status.Model
+	width       int
+	height      int
 }
 
 func New(svc svn.Service, logger *slog.Logger) Model {
@@ -22,7 +26,7 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 		SvnService:  svc,
 		Logger:      logger,
 		InfoModel:   info.Model{SvnService: svc},
-		StatusModel: status.Model{SvnService: svc},
+		StatusModel: status.Model{SvnService: svc, CursorIdx: 3},
 	}
 }
 
@@ -32,11 +36,12 @@ func (m *Model) Init() tea.Cmd {
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		return m, nil
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		m.Logger.Info(keyStr)
@@ -45,14 +50,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
 
 func (m *Model) View() string {
-	return lipgloss.JoinVertical(
-		lipgloss.Top,
+	content := utils.JoinVerticalStyled(
+		lipgloss.Left,
+		styles.BaseStyle,
 		m.InfoModel.View(),
 		m.StatusModel.View(),
 	)
+	return styles.BaseStyle.
+		PaddingLeft(2).
+		PaddingTop(1).
+		Width(m.width).
+		Height(m.height).
+		Render(content)
 }
