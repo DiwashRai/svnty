@@ -33,8 +33,9 @@ func (m *Model) View() string {
 	return utils.JoinVerticalStyled(
 		lipgloss.Left,
 		styles.BaseStyle,
-		styles.InfoHeading.Render("Working path: ")+styles.Fg.Render(wp),
-		styles.InfoHeading.Render("Remote URL:   ")+styles.Fg.Render(url),
-		styles.InfoHeading.Render("Revision:     ")+styles.Number.Render(rev),
+		styles.Gutter+styles.InfoHeading.Render("Working path: ")+styles.BaseStyle.Render(wp),
+		styles.Gutter+styles.InfoHeading.Render("Remote URL:   ")+styles.BaseStyle.Render(url),
+		styles.Gutter+styles.InfoHeading.Render("Revision:     ")+styles.Number.Render(rev),
+		styles.Gutter,
 	)
 }

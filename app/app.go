@@ -26,7 +26,7 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 		SvnService:  svc,
 		Logger:      logger,
 		InfoModel:   info.Model{SvnService: svc},
-		StatusModel: status.Model{SvnService: svc, CursorIdx: 3},
+		StatusModel: status.Model{SvnService: svc},
 	}
 }
 
@@ -48,6 +48,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch keyStr {
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		case "j":
+			m.StatusModel.Down()
+			return m, nil
+		case "k":
+			m.StatusModel.Up()
+			return m, nil
 		}
 	}
 	return m, tea.Batch(cmds...)
@@ -61,7 +67,7 @@ func (m *Model) View() string {
 		m.StatusModel.View(),
 	)
 	return styles.BaseStyle.
-		PaddingLeft(2).
+		PaddingLeft(1).
 		PaddingTop(1).
 		Width(m.width).
 		Height(m.height).
