@@ -7,6 +7,7 @@ import (
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/DiwashRai/svnty/utils"
 	"log/slog"
+	"reflect"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -26,22 +27,32 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 		SvnService:  svc,
 		Logger:      logger,
 		InfoModel:   info.Model{SvnService: svc},
-		StatusModel: status.Model{SvnService: svc},
+		StatusModel: status.Model{SvnService: svc, Logger: logger},
 	}
 }
 
 func (m *Model) Init() tea.Cmd {
-	m.SvnService.FetchInfo()
-	return nil
+	m.Logger.Info("App.Init()")
+	return tea.Batch(
+		svn.FetchInfoCmd(m.SvnService),
+		svn.FetchStatusCmd(m.SvnService),
+	)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+	m.Logger.Info("App.Update()")
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
+	case svn.RefreshStatusMsg:
+		cmd = m.StatusModel.Update(msg)
+		return m, cmd
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		m.Logger.Info(keyStr)
@@ -55,6 +66,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.StatusModel.Up()
 			return m, nil
 		}
+	default:
+		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
 	}
 	return m, tea.Batch(cmds...)
 }

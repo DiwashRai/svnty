@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"os/exec"
 )
 
@@ -14,6 +15,12 @@ type Service interface {
 	FetchStatus() error
 }
 
+type FetchInfoMsg struct{}
+type FetchStatusMsg struct{}
+
+type RefreshInfoMsg struct{}
+type RefreshStatusMsg struct{}
+
 type RealService struct {
 	RepoInfo   RepoInfo
 	RepoStatus RepoStatus
@@ -21,6 +28,24 @@ type RealService struct {
 
 func (svc *RealService) CurrentInfo() RepoInfo {
 	return svc.RepoInfo
+}
+
+func FetchInfoCmd(s Service) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.FetchInfo(); err != nil {
+			return nil
+		}
+		return RefreshInfoMsg{}
+	}
+}
+
+func FetchStatusCmd(s Service) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.FetchStatus(); err != nil {
+			return nil
+		}
+		return RefreshStatusMsg{}
+	}
 }
 
 func (svc *RealService) FetchInfo() error {
