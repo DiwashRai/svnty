@@ -66,6 +66,9 @@ var (
 	SelComment = Comment.
 			Background(lipgloss.Color(BgSelected))
 
+	SelNumber = Number.
+			Background(lipgloss.Color(BgSelected))
+
 	StatusRune = BaseStyle.
 			Foreground(lipgloss.Color(SpecialColor))
 
@@ -78,4 +81,5 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color(boatYellow2)).
 			Render(" => ") + BaseStyle.Render(" ")
+	ExpandedHeader = Comment.Render("⯆ ")
 )

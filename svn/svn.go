@@ -160,17 +160,10 @@ func StatusToRune(status string) (rune, bool) {
 	}
 }
 
-type PathStatus struct {
-	Path   string
-	Status rune
-}
-
-// SVN STATUS XML Structs
-
-type Section int
+type SectionIdx int
 
 const (
-	SectionUnversioned Section = iota
+	SectionUnversioned SectionIdx = iota
 	SectionUnstaged
 	SectionStaged
 	SectionIgnored
@@ -179,7 +172,7 @@ const (
 	NumSections
 )
 
-var SectionTitles = []string{
+var SectionTitles = [NumSections]string{
 	"Unversioned",
 	"Unstaged",
 	"Staged",
@@ -187,39 +180,64 @@ var SectionTitles = []string{
 	"Issues",
 }
 
-type RepoStatus struct {
-	Sections [NumSections][]PathStatus
+type Section struct {
+	Title     string
+	Paths     []PathStatus
+	Collapsed bool
 }
 
-func (rs *RepoStatus) Unversioned() []PathStatus {
+type PathStatus struct {
+	Path   string
+	Status rune
+}
+
+type RepoStatus struct {
+	Sections [NumSections]Section
+}
+
+func NewRepoStatus() RepoStatus {
+	return RepoStatus{
+		Sections: [NumSections]Section{
+			Section{Title: "Unversioned"},
+			Section{Title: "Unstaged"},
+			Section{Title: "Staged"},
+			Section{Title: "Ignored"},
+			Section{Title: "Issues"},
+		},
+	}
+}
+
+func (rs *RepoStatus) Unversioned() Section {
 	return rs.Sections[SectionUnversioned]
 }
 
-func (rs *RepoStatus) Unstaged() []PathStatus {
+func (rs *RepoStatus) Unstaged() Section {
 	return rs.Sections[SectionUnstaged]
 }
 
-func (rs *RepoStatus) Staged() []PathStatus {
+func (rs *RepoStatus) Staged() Section {
 	return rs.Sections[SectionStaged]
 }
 
-func (rs *RepoStatus) Ignored() []PathStatus {
+func (rs *RepoStatus) Ignored() Section {
 	return rs.Sections[SectionIgnored]
 }
 
-func (rs *RepoStatus) Issues() []PathStatus {
+func (rs *RepoStatus) Issues() Section {
 	return rs.Sections[SectionIssues]
 }
 
-func (rs *RepoStatus) Append(sec Section, ps PathStatus) {
-	rs.Sections[sec] = append(rs.Sections[sec], ps)
+func (rs *RepoStatus) Append(sec SectionIdx, ps PathStatus) {
+	rs.Sections[sec].Paths = append(rs.Sections[sec].Paths, ps)
 }
 
 func (rs *RepoStatus) Clear() {
 	for i := range rs.Sections {
-		rs.Sections[i] = rs.Sections[i][:0]
+		rs.Sections[i].Paths = rs.Sections[i].Paths[:0]
 	}
 }
+
+// SVN STATUS XML Structs
 
 type StatusXML struct {
 	XMLName     xml.Name        `xml:"status"`
