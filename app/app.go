@@ -5,7 +5,7 @@ import (
 	"github.com/DiwashRai/svnty/status"
 	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
-	"github.com/DiwashRai/svnty/utils"
+	"github.com/DiwashRai/svnty/tui"
 	"log/slog"
 	"reflect"
 
@@ -24,18 +24,21 @@ type Model struct {
 
 func New(svc svn.Service, logger *slog.Logger) Model {
 	return Model{
-		SvnService:  svc,
-		Logger:      logger,
-		InfoModel:   info.Model{SvnService: svc},
-		StatusModel: status.Model{SvnService: svc, Logger: logger},
-	}
+		SvnService: svc,
+		Logger:     logger,
+		InfoModel:  info.Model{SvnService: svc},
+		StatusModel: status.Model{
+			SvnService: svc,
+			Logger:     logger,
+			Cursor:     status.Cursor{Item: status.HEADER_IDX},
+		}}
 }
 
 func (m *Model) Init() tea.Cmd {
 	m.Logger.Info("App.Init()")
 	return tea.Batch(
-		svn.FetchInfoCmd(m.SvnService),
-		svn.FetchStatusCmd(m.SvnService),
+		status.FetchInfoCmd(m.SvnService),
+		status.FetchStatusCmd(m.SvnService),
 	)
 }
 
@@ -50,21 +53,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
-	case svn.RefreshStatusMsg:
+	case tui.FetchStatus:
+		cmd = m.StatusModel.Update(msg)
+		return m, cmd
+	case tui.RefreshStatus:
+		cmd = m.StatusModel.Update(msg)
+		return m, cmd
+	case tui.RenderError:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		m.Logger.Info(keyStr)
 		switch keyStr {
-		case "ctrl+c", "q":
-			return m, tea.Quit
+		case "s", "u":
+			cmd = m.StatusModel.Update(msg)
+			return m, cmd
 		case "j":
 			m.StatusModel.Down()
 			return m, nil
 		case "k":
 			m.StatusModel.Up()
 			return m, nil
+		case "ctrl+c", "q":
+			return m, tea.Quit
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
@@ -73,7 +85,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
-	content := utils.JoinVerticalStyled(
+	content := tui.JoinVerticalStyled(
 		lipgloss.Left,
 		styles.BaseStyle,
 		m.InfoModel.View(),

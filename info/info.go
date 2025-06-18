@@ -3,7 +3,7 @@ package info
 import (
 	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
-	"github.com/DiwashRai/svnty/utils"
+	"github.com/DiwashRai/svnty/tui"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,7 +30,7 @@ func (m *Model) View() string {
 	info := m.SvnService.CurrentInfo()
 	wp, url, rev := info.WorkingPath, info.RemoteURL, strconv.FormatUint(uint64(info.Revision), 10)
 
-	return utils.JoinVerticalStyled(
+	return tui.JoinVerticalStyled(
 		lipgloss.Left,
 		styles.BaseStyle,
 		styles.Gutter+styles.InfoHeading.Render("Working path: ")+styles.BaseStyle.Render(wp),

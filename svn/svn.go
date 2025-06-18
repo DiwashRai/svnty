@@ -3,8 +3,8 @@ package svn
 import (
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"os/exec"
 )
 
@@ -13,39 +13,19 @@ type Service interface {
 	FetchInfo() error
 	CurrentStatus() *RepoStatus
 	FetchStatus() error
+	StagePath(string) error
+	UnstagePath(string) error
+	GetPath(SectionIdx, int) (string, error)
 }
-
-type FetchInfoMsg struct{}
-type FetchStatusMsg struct{}
-
-type RefreshInfoMsg struct{}
-type RefreshStatusMsg struct{}
 
 type RealService struct {
 	RepoInfo   RepoInfo
 	RepoStatus RepoStatus
+	Logger     *slog.Logger
 }
 
 func (svc *RealService) CurrentInfo() RepoInfo {
 	return svc.RepoInfo
-}
-
-func FetchInfoCmd(s Service) tea.Cmd {
-	return func() tea.Msg {
-		if err := s.FetchInfo(); err != nil {
-			return nil
-		}
-		return RefreshInfoMsg{}
-	}
-}
-
-func FetchStatusCmd(s Service) tea.Cmd {
-	return func() tea.Msg {
-		if err := s.FetchStatus(); err != nil {
-			return nil
-		}
-		return RefreshStatusMsg{}
-	}
 }
 
 func (svc *RealService) FetchInfo() error {
@@ -133,6 +113,50 @@ func (svc *RealService) FetchStatus() error {
 	return nil
 }
 
+func (svc *RealService) GetPath(si SectionIdx, idx int) (string, error) {
+	if si < 0 || si >= NumSections {
+		return "", fmt.Errorf("GetPath with out of bounds section id called")
+	}
+	if idx < 0 || idx >= len(svc.RepoStatus.Sections[si].Paths) {
+		return "", fmt.Errorf("GetPath with out of bounds idx called")
+	}
+	return svc.RepoStatus.Sections[si].Paths[idx].Path, nil
+}
+
+func (svc *RealService) StagePath(path string) error {
+	svc.Logger.Info("StagePath called", "path", path)
+	if path == "" {
+		return nil
+	}
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"changelist", "staged", path)
+
+	_, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("Error running svn changelist staged: %w", err)
+	}
+
+	return nil
+}
+
+func (svc *RealService) UnstagePath(path string) error {
+	svc.Logger.Info("UnstagePath called", "path", path)
+	if path == "" {
+		return nil
+	}
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"changelist", "--remove", path)
+
+	_, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("Error running svn changelist --remove %s: %w", path, err)
+	}
+
+	return nil
+}
+
 func StatusToRune(status string) (rune, bool) {
 	switch status {
 	case "added":
@@ -198,13 +222,20 @@ type RepoStatus struct {
 func NewRepoStatus() RepoStatus {
 	return RepoStatus{
 		Sections: [NumSections]Section{
-			Section{Title: "Unversioned"},
-			Section{Title: "Unstaged"},
-			Section{Title: "Staged"},
-			Section{Title: "Ignored"},
-			Section{Title: "Issues"},
+			{Title: "Unversioned"},
+			{Title: "Unstaged"},
+			{Title: "Staged"},
+			{Title: "Ignored"},
+			{Title: "Issues"},
 		},
 	}
+}
+
+func (rs *RepoStatus) Len(si SectionIdx) int {
+	if si < 0 || si >= NumSections {
+		return 0
+	}
+	return len(rs.Sections[si].Paths)
 }
 
 func (rs *RepoStatus) Unversioned() Section {
@@ -272,7 +303,7 @@ type CommitXML struct {
 type WCStatusXML struct {
 	XMLName  xml.Name `xml:"wc-status"`
 	Status   string   `xml:"item,attr"`
-	Revision uint32   `xml:"revision,attr"`
+	Revision int      `xml:"revision,attr"`
 }
 
 // SVN INFO XML Structs

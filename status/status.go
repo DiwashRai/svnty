@@ -1,12 +1,14 @@
 package status
 
 import (
-	"github.com/DiwashRai/svnty/styles"
-	"github.com/DiwashRai/svnty/svn"
 	"log/slog"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/DiwashRai/svnty/styles"
+	"github.com/DiwashRai/svnty/svn"
+	"github.com/DiwashRai/svnty/tui"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,19 +23,31 @@ const (
 	BlankElem // used for blank lines between sections
 )
 
+const (
+	HEADER_IDX = -1
+	IGNORE_IDX = -2
+)
+
 type Element struct {
 	Type        ElementType
 	SectionID   svn.SectionIdx
+	ItemIdx     int
 	SectionSize int
 	Content     string
 	Status      rune
+}
+
+type Cursor struct {
+	Section svn.SectionIdx
+	Item    int
 }
 
 type Model struct {
 	SvnService svn.Service
 	Logger     *slog.Logger
 	Panel      []Element
-	CursorIdx  int
+	Cursor     Cursor
+	Errs       []string
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -44,36 +58,20 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	m.Logger.Info("StatusModel.Update()")
 
 	switch msg := msg.(type) {
-	case svn.RefreshStatusMsg:
-		m.Logger.Info("Refreshing status panel")
-		for i, section := range m.SvnService.CurrentStatus().Sections {
-			if len(section.Paths) <= 0 {
-				continue
-			}
-			m.Panel = append(m.Panel,
-				Element{
-					Type:        HeaderElem,
-					SectionID:   svn.SectionIdx(i),
-					SectionSize: len(m.SvnService.CurrentStatus().Sections[i].Paths),
-					Content:     svn.SectionTitles[i],
-				},
-			)
-
-			if section.Collapsed {
-				m.Panel = append(m.Panel, Element{Type: BlankElem})
-				continue
-			}
-
-			for _, ps := range section.Paths {
-				m.Panel = append(m.Panel,
-					Element{
-						Type:      PathElem,
-						SectionID: svn.SectionIdx(i),
-						Content:   ps.Path,
-						Status:    ps.Status,
-					})
-			}
-			m.Panel = append(m.Panel, Element{Type: BlankElem})
+	case tui.FetchStatus:
+		return FetchStatusCmd(m.SvnService)
+	case tui.RefreshStatus:
+		return RefreshStatusCmd(m)
+	case tui.RenderError:
+		m.Errs = append(m.Errs, msg.Error())
+		return nil
+	case tea.KeyMsg:
+		keyStr := msg.String()
+		switch keyStr {
+		case "s":
+			return m.Stage()
+		case "u":
+			return m.Unstage()
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
@@ -81,33 +79,38 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) Down() {
-	if m.CursorIdx < len(m.Panel)-1 {
-		m.CursorIdx++
+func (m *Model) renderErrs() string {
+	if len(m.Errs) == 0 {
+		return ""
 	}
-}
 
-func (m *Model) Up() {
-	if m.CursorIdx > 0 {
-		m.CursorIdx--
+	var b strings.Builder
+	b.WriteByte('\n')
+	for _, err := range m.Errs {
+		b.WriteString(err)
+		b.WriteByte('\n')
 	}
+	b.WriteByte('\n')
+	return b.String()
 }
 
 func (m *Model) View() string {
 	var b strings.Builder
-	for line, elem := range m.Panel {
+	b.WriteString(m.renderErrs())
+
+	for _, elem := range m.Panel {
 		var gutter string
 		var headingStyle, runeStyle, textStyle lipgloss.Style
-		if line != m.CursorIdx {
-			gutter = styles.Gutter
-			headingStyle = styles.StatusSectionHeading
-			runeStyle = styles.StatusRune
-			textStyle = styles.BaseStyle
-		} else {
+		if elem.SectionID == m.Cursor.Section && elem.ItemIdx == m.Cursor.Item {
 			gutter = styles.SelGutter
 			headingStyle = styles.SelStatusSectionHeading
 			runeStyle = styles.SelStatusRune
 			textStyle = styles.Selected
+		} else {
+			gutter = styles.Gutter
+			headingStyle = styles.StatusSectionHeading
+			runeStyle = styles.StatusRune
+			textStyle = styles.BaseStyle
 		}
 
 		b.WriteString(gutter)
@@ -132,4 +135,186 @@ func (m *Model) View() string {
 		b.WriteByte('\n')
 	}
 	return b.String()
+}
+
+func (m *Model) RefreshStatus() {
+	m.Logger.Info("Refreshing status panel")
+	m.Panel = m.Panel[:0]
+	m.ClampCursor()
+
+	svnStatus := m.SvnService.CurrentStatus()
+	for secID, section := range svnStatus.Sections {
+		if len(section.Paths) <= 0 {
+			continue
+		}
+
+		headerStatus := 'e'
+		if section.Collapsed {
+			headerStatus = 'c'
+		}
+		m.Panel = append(m.Panel,
+			Element{
+				Type:        HeaderElem,
+				SectionID:   svn.SectionIdx(secID),
+				ItemIdx:     HEADER_IDX,
+				SectionSize: len(section.Paths),
+				Content:     svn.SectionTitles[secID],
+				Status:      headerStatus,
+			},
+		)
+
+		if section.Collapsed {
+			m.Panel = append(m.Panel, Element{Type: BlankElem, SectionID: -1})
+			continue
+		}
+
+		for j, ps := range section.Paths {
+			m.Panel = append(m.Panel,
+				Element{
+					Type:      PathElem,
+					SectionID: svn.SectionIdx(secID),
+					ItemIdx:   j,
+					Content:   ps.Path,
+					Status:    ps.Status,
+				})
+		}
+		m.Panel = append(m.Panel, Element{Type: BlankElem, ItemIdx: IGNORE_IDX})
+	}
+	m.Must(m.Cursor.Section == 0 ||
+		(m.Cursor.Item >= HEADER_IDX &&
+			m.Cursor.Item < len(svnStatus.Sections[m.Cursor.Section].Paths)),
+		"Cursor idx out of bounds")
+}
+
+func (m *Model) Must(cond bool, msg string) {
+	if !cond {
+		m.Errs = append(m.Errs, msg)
+	}
+}
+
+func FetchInfoCmd(s svn.Service) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.FetchInfo(); err != nil {
+			return tui.RenderError(err)
+		}
+		return tui.RefreshInfo{}
+	}
+}
+
+func FetchStatusCmd(s svn.Service) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.FetchStatus(); err != nil {
+			return tui.RenderError(err)
+		}
+		return tui.RefreshStatus{}
+	}
+}
+
+func RefreshStatusCmd(m *Model) tea.Cmd {
+	return func() tea.Msg {
+		m.RefreshStatus()
+		return nil
+	}
+}
+
+func StagePathCmd(s svn.Service, path string) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.StagePath(path); err != nil {
+			return tui.RenderError(err)
+		}
+		return tui.FetchStatus{}
+	}
+}
+
+func UnstagePathCmd(s svn.Service, path string) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.UnstagePath(path); err != nil {
+			return tui.RenderError(err)
+		}
+		return tui.FetchStatus{}
+	}
+}
+
+func (m *Model) Stage() tea.Cmd {
+	m.Logger.Info("StatusModel.Stage() called")
+	if m.Cursor.Item <= IGNORE_IDX {
+		return nil
+	}
+
+	if m.Cursor.Item == HEADER_IDX {
+		//TODO: stage whole section
+		return nil
+	}
+
+	p, err := m.SvnService.GetPath(m.Cursor.Section, m.Cursor.Item)
+	if err != nil {
+		return nil
+	}
+	m.Logger.Info("Returning StagePathCmd", "path", p)
+	return StagePathCmd(m.SvnService, p)
+}
+
+func (m *Model) Unstage() tea.Cmd {
+	m.Logger.Info("StatusModel.Unstage() called")
+	if m.Cursor.Item <= IGNORE_IDX || m.Cursor.Section != svn.SectionStaged {
+		return nil
+	}
+
+	if m.Cursor.Item == HEADER_IDX {
+		//TODO: unstage whole section
+	}
+
+	p, err := m.SvnService.GetPath(svn.SectionStaged, m.Cursor.Item)
+	if err != nil {
+		return nil
+	}
+	return UnstagePathCmd(m.SvnService, p)
+}
+
+func (m *Model) Down() bool {
+	svnStatus := m.SvnService.CurrentStatus()
+
+	if m.Cursor.Item < len(svnStatus.Sections[m.Cursor.Section].Paths)-1 {
+		m.Cursor.Item++
+		return true
+	}
+	for i := m.Cursor.Section + 1; i < svn.NumSections; i++ {
+		if len(svnStatus.Sections[i].Paths) == 0 {
+			continue
+		}
+		m.Cursor.Section = i
+		m.Cursor.Item = HEADER_IDX
+		return true
+	}
+	return false
+}
+
+func (m *Model) Up() bool {
+	svnStatus := m.SvnService.CurrentStatus()
+
+	if m.Cursor.Item >= 0 && svnStatus.Len(m.Cursor.Section) > 0 {
+		m.Cursor.Item--
+		return true
+	}
+	for i := m.Cursor.Section - 1; i >= 0; i-- {
+		currSecSize := len(svnStatus.Sections[i].Paths)
+		if currSecSize == 0 {
+			continue
+		}
+		m.Cursor.Section = i
+		m.Cursor.Item = currSecSize - 1
+		return true
+	}
+	return false
+}
+
+func (m *Model) ClampCursor() {
+	svnStatus := m.SvnService.CurrentStatus()
+
+	if m.Cursor.Item >= svnStatus.Len(m.Cursor.Section) {
+		if !m.Up() && !m.Down() {
+			m.Cursor.Section = 0
+			m.Cursor.Item = HEADER_IDX
+		}
+	}
 }

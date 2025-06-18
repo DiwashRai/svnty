@@ -22,3 +22,15 @@ func (svc *MockService) CurrentStatus() *RepoStatus {
 func (svc *MockService) FetchStatus() error {
 	return nil
 }
+
+func (svc *MockService) StagePath(path string) error {
+	return nil
+}
+
+func (svc *MockService) UnstagePath(path string) error {
+	return nil
+}
+
+func (svc *MockService) GetPath(si SectionIdx, idx int) (string, error) {
+	return "", nil
+}

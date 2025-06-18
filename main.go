@@ -28,7 +28,7 @@ func main() {
 		var mockSvc svn.MockService
 		svc = &mockSvc
 	} else {
-		var realSvc svn.RealService
+		realSvc := svn.RealService{Logger: rootLogger}
 		svc = &realSvc
 	}
 
