@@ -81,5 +81,14 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color(boatYellow2)).
 			Render(" => ") + BaseStyle.Render(" ")
-	ExpandedHeader = Comment.Render("⯆ ")
+
+	ExpandedHeader    = Comment.Render("⯆ ")
+	SelExpandedHeader = Comment.
+				Background(lipgloss.Color(BgSelected)).
+				Render("⯆ ")
+
+	CollapsedHeader    = Comment.Render("▶ ")
+	SelCollapsedHeader = Comment.
+				Background(lipgloss.Color(BgSelected)).
+				Render("▶ ")
 )

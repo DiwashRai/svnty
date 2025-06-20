@@ -34,3 +34,7 @@ func (svc *MockService) UnstagePath(path string) error {
 func (svc *MockService) GetPath(si SectionIdx, idx int) (string, error) {
 	return "", nil
 }
+
+func (svc *MockService) ToggleCollapsed(si SectionIdx) error {
+	return nil
+}

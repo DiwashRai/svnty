@@ -66,17 +66,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		keyStr := msg.String()
 		m.Logger.Info(keyStr)
 		switch keyStr {
-		case "s", "u":
-			cmd = m.StatusModel.Update(msg)
-			return m, cmd
-		case "j":
-			m.StatusModel.Down()
-			return m, nil
-		case "k":
-			m.StatusModel.Up()
-			return m, nil
 		case "ctrl+c", "q":
 			return m, tea.Quit
+		default:
+			cmd = m.StatusModel.Update(msg)
+			return m, cmd
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
@@ -91,6 +85,7 @@ func (m *Model) View() string {
 		m.InfoModel.View(),
 		m.StatusModel.View(),
 	)
+	m.Logger.Info("App.View()")
 	return styles.BaseStyle.
 		PaddingLeft(1).
 		PaddingTop(1).

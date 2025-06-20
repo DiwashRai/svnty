@@ -16,6 +16,7 @@ type Service interface {
 	StagePath(string) error
 	UnstagePath(string) error
 	GetPath(SectionIdx, int) (string, error)
+	ToggleCollapsed(SectionIdx) error
 }
 
 type RealService struct {
@@ -154,6 +155,16 @@ func (svc *RealService) UnstagePath(path string) error {
 		return fmt.Errorf("Error running svn changelist --remove %s: %w", path, err)
 	}
 
+	return nil
+}
+
+func (svc *RealService) ToggleCollapsed(si SectionIdx) error {
+	svc.Logger.Info("ToggleCollapsed called", "section", si)
+	if si < 0 || si >= NumSections {
+		return fmt.Errorf("ToggleCollapsed called with out of bounds section id")
+	}
+
+	svc.RepoStatus.Sections[si].Collapsed = !svc.RepoStatus.Sections[si].Collapsed
 	return nil
 }
 

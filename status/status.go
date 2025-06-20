@@ -68,10 +68,18 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		switch keyStr {
+		case "j":
+			m.Down()
+			return nil
+		case "k":
+			m.Up()
+			return nil
 		case "s":
 			return m.Stage()
 		case "u":
 			return m.Unstage()
+		case "enter":
+			return m.ToggleCollapsed()
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
@@ -94,19 +102,38 @@ func (m *Model) renderErrs() string {
 	return b.String()
 }
 
+func headerIcon(isSel bool, isExpanded bool) string {
+	if isSel {
+		if isExpanded {
+			return styles.SelExpandedHeader
+		} else {
+			return styles.SelCollapsedHeader
+		}
+	} else {
+		if isExpanded {
+			return styles.ExpandedHeader
+		} else {
+			return styles.CollapsedHeader
+		}
+	}
+}
+
 func (m *Model) View() string {
 	var b strings.Builder
 	b.WriteString(m.renderErrs())
 
 	for _, elem := range m.Panel {
+		var isSel bool
 		var gutter string
 		var headingStyle, runeStyle, textStyle lipgloss.Style
 		if elem.SectionID == m.Cursor.Section && elem.ItemIdx == m.Cursor.Item {
+			isSel = true
 			gutter = styles.SelGutter
 			headingStyle = styles.SelStatusSectionHeading
 			runeStyle = styles.SelStatusRune
 			textStyle = styles.Selected
 		} else {
+			isSel = false
 			gutter = styles.Gutter
 			headingStyle = styles.StatusSectionHeading
 			runeStyle = styles.StatusRune
@@ -117,7 +144,7 @@ func (m *Model) View() string {
 
 		switch elem.Type {
 		case HeaderElem:
-			b.WriteString(styles.ExpandedHeader)
+			b.WriteString(headerIcon(isSel, elem.Status == 'e'))
 			b.WriteString(headingStyle.Render(elem.Content))
 			b.WriteString(headingStyle.Render(" ("))
 			b.WriteString(textStyle.Render(strconv.Itoa(elem.SectionSize)))
@@ -235,6 +262,15 @@ func UnstagePathCmd(s svn.Service, path string) tea.Cmd {
 	}
 }
 
+func ToggleCollapsedCmd(s svn.Service, si svn.SectionIdx) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.ToggleCollapsed(si); err != nil {
+			return tui.RenderError(err)
+		}
+		return tui.RefreshStatus{}
+	}
+}
+
 func (m *Model) Stage() tea.Cmd {
 	m.Logger.Info("StatusModel.Stage() called")
 	if m.Cursor.Item <= IGNORE_IDX {
@@ -271,10 +307,18 @@ func (m *Model) Unstage() tea.Cmd {
 	return UnstagePathCmd(m.SvnService, p)
 }
 
+func (m *Model) ToggleCollapsed() tea.Cmd {
+	if m.Cursor.Item != HEADER_IDX {
+		return nil
+	}
+	return ToggleCollapsedCmd(m.SvnService, m.Cursor.Section)
+}
+
 func (m *Model) Down() bool {
 	svnStatus := m.SvnService.CurrentStatus()
 
-	if m.Cursor.Item < len(svnStatus.Sections[m.Cursor.Section].Paths)-1 {
+	if !svnStatus.Sections[m.Cursor.Section].Collapsed &&
+		m.Cursor.Item < len(svnStatus.Sections[m.Cursor.Section].Paths)-1 {
 		m.Cursor.Item++
 		return true
 	}
@@ -292,7 +336,8 @@ func (m *Model) Down() bool {
 func (m *Model) Up() bool {
 	svnStatus := m.SvnService.CurrentStatus()
 
-	if m.Cursor.Item >= 0 && svnStatus.Len(m.Cursor.Section) > 0 {
+	if !svnStatus.Sections[m.Cursor.Section].Collapsed &&
+		m.Cursor.Item >= 0 && svnStatus.Len(m.Cursor.Section) > 0 {
 		m.Cursor.Item--
 		return true
 	}
@@ -302,7 +347,11 @@ func (m *Model) Up() bool {
 			continue
 		}
 		m.Cursor.Section = i
-		m.Cursor.Item = currSecSize - 1
+		if svnStatus.Sections[m.Cursor.Section].Collapsed {
+			m.Cursor.Item = HEADER_IDX
+		} else {
+			m.Cursor.Item = currSecSize - 1
+		}
 		return true
 	}
 	return false
@@ -311,7 +360,8 @@ func (m *Model) Up() bool {
 func (m *Model) ClampCursor() {
 	svnStatus := m.SvnService.CurrentStatus()
 
-	if m.Cursor.Item >= svnStatus.Len(m.Cursor.Section) {
+	secLen := svnStatus.Len(m.Cursor.Section)
+	if m.Cursor.Item >= secLen || secLen <= 0 {
 		if !m.Up() && !m.Down() {
 			m.Cursor.Section = 0
 			m.Cursor.Item = HEADER_IDX
