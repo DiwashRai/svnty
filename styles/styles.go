@@ -28,6 +28,8 @@ const (
 	KeywordColor  = oniViolet
 	SpecialColor  = surimiOrange
 	Special2Color = waveRed
+
+	ScrollPadding = 2
 )
 
 var (

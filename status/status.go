@@ -35,6 +35,7 @@ type Element struct {
 	SectionSize int
 	Content     string
 	Status      rune
+	Expanded    bool
 }
 
 type Cursor struct {
@@ -43,11 +44,15 @@ type Cursor struct {
 }
 
 type Model struct {
+	//Width      int
+	Height     int
+	YOffset    int
 	SvnService svn.Service
 	Logger     *slog.Logger
 	Panel      []Element
 	Cursor     Cursor
 	Errs       []string
+	Lines      []string
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -58,6 +63,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	m.Logger.Info("StatusModel.Update()")
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Height = msg.Height - 6 // info panel size 4 + 1 padding top
 	case tui.FetchStatus:
 		return FetchStatusCmd(m.SvnService)
 	case tui.RefreshStatus:
@@ -78,28 +85,16 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			return m.Stage()
 		case "u":
 			return m.Unstage()
+		case "=":
+			m.Diff()
+			return nil
 		case "enter":
-			return m.ToggleCollapsed()
+			return m.ToggleExpanded()
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
 	}
 	return nil
-}
-
-func (m *Model) renderErrs() string {
-	if len(m.Errs) == 0 {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteByte('\n')
-	for _, err := range m.Errs {
-		b.WriteString(err)
-		b.WriteByte('\n')
-	}
-	b.WriteByte('\n')
-	return b.String()
 }
 
 func headerIcon(isSel bool, isExpanded bool) string {
@@ -118,16 +113,41 @@ func headerIcon(isSel bool, isExpanded bool) string {
 	}
 }
 
-func (m *Model) View() string {
-	var b strings.Builder
-	b.WriteString(m.renderErrs())
+func clamp(v, low, high int) int {
+	if high < low {
+		low, high = high, low
+	}
+	return min(high, max(low, v))
+}
 
-	for _, elem := range m.Panel {
+func (m *Model) visibleLines(cursorIdx, padding int) (lines []string) {
+	if cursorIdx-padding < m.YOffset {
+		m.YOffset = max(0, cursorIdx-padding)
+	} else if cursorIdx+padding >= m.YOffset+m.Height {
+		m.YOffset = min(len(m.Lines)-m.Height, (cursorIdx-(m.Height-1))+2)
+	}
+
+	if len(m.Lines) > 0 {
+		top := max(0, m.YOffset)
+		bottom := clamp(m.YOffset+m.Height, top, len(m.Lines))
+		lines = m.Lines[top:bottom]
+	}
+	return lines
+}
+
+func (m *Model) View() string {
+	m.Lines = m.Lines[:0]
+	m.Lines = append(m.Lines, m.Errs...)
+
+	var cursorIdx int
+	for i, elem := range m.Panel {
+		var b strings.Builder
 		var isSel bool
 		var gutter string
 		var headingStyle, runeStyle, textStyle lipgloss.Style
 		if elem.SectionID == m.Cursor.Section && elem.ItemIdx == m.Cursor.Item {
 			isSel = true
+			cursorIdx = i
 			gutter = styles.SelGutter
 			headingStyle = styles.SelStatusSectionHeading
 			runeStyle = styles.SelStatusRune
@@ -144,7 +164,7 @@ func (m *Model) View() string {
 
 		switch elem.Type {
 		case HeaderElem:
-			b.WriteString(headerIcon(isSel, elem.Status == 'e'))
+			b.WriteString(headerIcon(isSel, elem.Expanded))
 			b.WriteString(headingStyle.Render(elem.Content))
 			b.WriteString(headingStyle.Render(" ("))
 			b.WriteString(textStyle.Render(strconv.Itoa(elem.SectionSize)))
@@ -159,9 +179,9 @@ func (m *Model) View() string {
 		default:
 			m.Logger.Error("Invalid element type encountered")
 		}
-		b.WriteByte('\n')
+		m.Lines = append(m.Lines, b.String())
 	}
-	return b.String()
+	return strings.Join(m.visibleLines(cursorIdx, styles.ScrollPadding), "\n")
 }
 
 func (m *Model) RefreshStatus() {
@@ -175,9 +195,9 @@ func (m *Model) RefreshStatus() {
 			continue
 		}
 
-		headerStatus := 'e'
-		if section.Collapsed {
-			headerStatus = 'c'
+		headerExpanded := true
+		if !section.Expanded {
+			headerExpanded = false
 		}
 		m.Panel = append(m.Panel,
 			Element{
@@ -186,11 +206,11 @@ func (m *Model) RefreshStatus() {
 				ItemIdx:     HEADER_IDX,
 				SectionSize: len(section.Paths),
 				Content:     svn.SectionTitles[secID],
-				Status:      headerStatus,
+				Expanded:    headerExpanded,
 			},
 		)
 
-		if section.Collapsed {
+		if !section.Expanded {
 			m.Panel = append(m.Panel, Element{Type: BlankElem, SectionID: -1})
 			continue
 		}
@@ -262,9 +282,9 @@ func UnstagePathCmd(s svn.Service, path string) tea.Cmd {
 	}
 }
 
-func ToggleCollapsedCmd(s svn.Service, si svn.SectionIdx) tea.Cmd {
+func ToggleExpandedCmd(s svn.Service, si svn.SectionIdx) tea.Cmd {
 	return func() tea.Msg {
-		if err := s.ToggleCollapsed(si); err != nil {
+		if err := s.ToggleExpanded(si); err != nil {
 			return tui.RenderError(err)
 		}
 		return tui.RefreshStatus{}
@@ -282,12 +302,12 @@ func (m *Model) Stage() tea.Cmd {
 		return nil
 	}
 
-	p, err := m.SvnService.GetPath(m.Cursor.Section, m.Cursor.Item)
+	ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.Item)
 	if err != nil {
 		return nil
 	}
-	m.Logger.Info("Returning StagePathCmd", "path", p)
-	return StagePathCmd(m.SvnService, p)
+	m.Logger.Info("Returning StagePathCmd", "path", ps.Path)
+	return StagePathCmd(m.SvnService, ps.Path)
 }
 
 func (m *Model) Unstage() tea.Cmd {
@@ -300,24 +320,35 @@ func (m *Model) Unstage() tea.Cmd {
 		//TODO: unstage whole section
 	}
 
-	p, err := m.SvnService.GetPath(svn.SectionStaged, m.Cursor.Item)
+	ps, err := m.SvnService.GetPathStatus(svn.SectionStaged, m.Cursor.Item)
 	if err != nil {
 		return nil
 	}
-	return UnstagePathCmd(m.SvnService, p)
+	return UnstagePathCmd(m.SvnService, ps.Path)
 }
 
-func (m *Model) ToggleCollapsed() tea.Cmd {
+func (m *Model) Diff() tea.Cmd {
+	m.Logger.Info("StatusModel.Diff() called")
+	ps, err := m.SvnService.GetPathStatus(svn.SectionStaged, m.Cursor.Item)
+	if err != nil {
+		return nil
+	}
+	diff, err := m.SvnService.GetDiff(ps.Path)
+	m.Logger.Info(diff)
+	return nil
+}
+
+func (m *Model) ToggleExpanded() tea.Cmd {
 	if m.Cursor.Item != HEADER_IDX {
 		return nil
 	}
-	return ToggleCollapsedCmd(m.SvnService, m.Cursor.Section)
+	return ToggleExpandedCmd(m.SvnService, m.Cursor.Section)
 }
 
 func (m *Model) Down() bool {
 	svnStatus := m.SvnService.CurrentStatus()
 
-	if !svnStatus.Sections[m.Cursor.Section].Collapsed &&
+	if svnStatus.Sections[m.Cursor.Section].Expanded &&
 		m.Cursor.Item < len(svnStatus.Sections[m.Cursor.Section].Paths)-1 {
 		m.Cursor.Item++
 		return true
@@ -336,7 +367,7 @@ func (m *Model) Down() bool {
 func (m *Model) Up() bool {
 	svnStatus := m.SvnService.CurrentStatus()
 
-	if !svnStatus.Sections[m.Cursor.Section].Collapsed &&
+	if svnStatus.Sections[m.Cursor.Section].Expanded &&
 		m.Cursor.Item >= 0 && svnStatus.Len(m.Cursor.Section) > 0 {
 		m.Cursor.Item--
 		return true
@@ -347,10 +378,10 @@ func (m *Model) Up() bool {
 			continue
 		}
 		m.Cursor.Section = i
-		if svnStatus.Sections[m.Cursor.Section].Collapsed {
-			m.Cursor.Item = HEADER_IDX
-		} else {
+		if svnStatus.Sections[m.Cursor.Section].Expanded {
 			m.Cursor.Item = currSecSize - 1
+		} else {
+			m.Cursor.Item = HEADER_IDX
 		}
 		return true
 	}

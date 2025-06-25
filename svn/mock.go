@@ -3,6 +3,8 @@ package svn
 type MockService struct {
 }
 
+func (svc *MockService) Init() {}
+
 func (svc *MockService) CurrentInfo() RepoInfo {
 	return RepoInfo{
 		WorkingPath: "C:/Code/GitHub/textual-test/",
@@ -31,10 +33,14 @@ func (svc *MockService) UnstagePath(path string) error {
 	return nil
 }
 
-func (svc *MockService) GetPath(si SectionIdx, idx int) (string, error) {
+func (svc *MockService) GetDiff(path string) (string, error) {
 	return "", nil
 }
 
-func (svc *MockService) ToggleCollapsed(si SectionIdx) error {
+func (svc *MockService) GetPathStatus(si SectionIdx, idx int) (PathStatus, error) {
+	return PathStatus{}, nil
+}
+
+func (svc *MockService) ToggleExpanded(si SectionIdx) error {
 	return nil
 }

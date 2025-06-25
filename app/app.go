@@ -36,6 +36,7 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 
 func (m *Model) Init() tea.Cmd {
 	m.Logger.Info("App.Init()")
+	m.SvnService.Init()
 	return tea.Batch(
 		status.FetchInfoCmd(m.SvnService),
 		status.FetchStatusCmd(m.SvnService),
@@ -52,6 +53,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.StatusModel.Update(msg)
 		return m, nil
 	case tui.FetchStatus:
 		cmd = m.StatusModel.Update(msg)

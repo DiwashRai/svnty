@@ -1,6 +1,7 @@
 package svn
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"log/slog"
@@ -9,20 +10,32 @@ import (
 )
 
 type Service interface {
+	Init()
 	CurrentInfo() RepoInfo
 	FetchInfo() error
 	CurrentStatus() *RepoStatus
 	FetchStatus() error
 	StagePath(string) error
 	UnstagePath(string) error
-	GetPath(SectionIdx, int) (string, error)
-	ToggleCollapsed(SectionIdx) error
+	GetDiff(string) (string, error)
+	GetPathStatus(SectionIdx, int) (PathStatus, error)
+	ToggleExpanded(SectionIdx) error
 }
 
 type RealService struct {
 	RepoInfo   RepoInfo
 	RepoStatus RepoStatus
 	Logger     *slog.Logger
+}
+
+func (svc *RealService) Init() {
+	svc.Logger.Info("RealService.Init()")
+
+	for i := SectionIdx(0); i < NumSections; i++ {
+		svc.RepoStatus.Sections[i].Title = SectionTitles[i]
+		svc.RepoStatus.Sections[i].Expanded = true
+	}
+	svc.RepoStatus.Sections[SectionUnversioned].Expanded = false
 }
 
 func (svc *RealService) CurrentInfo() RepoInfo {
@@ -114,14 +127,14 @@ func (svc *RealService) FetchStatus() error {
 	return nil
 }
 
-func (svc *RealService) GetPath(si SectionIdx, idx int) (string, error) {
+func (svc *RealService) GetPathStatus(si SectionIdx, idx int) (PathStatus, error) {
 	if si < 0 || si >= NumSections {
-		return "", fmt.Errorf("GetPath with out of bounds section id called")
+		return PathStatus{}, fmt.Errorf("GetPath with out of bounds section id called")
 	}
 	if idx < 0 || idx >= len(svc.RepoStatus.Sections[si].Paths) {
-		return "", fmt.Errorf("GetPath with out of bounds idx called")
+		return PathStatus{}, fmt.Errorf("GetPath with out of bounds idx called")
 	}
-	return svc.RepoStatus.Sections[si].Paths[idx].Path, nil
+	return svc.RepoStatus.Sections[si].Paths[idx], nil
 }
 
 func (svc *RealService) StagePath(path string) error {
@@ -158,13 +171,44 @@ func (svc *RealService) UnstagePath(path string) error {
 	return nil
 }
 
-func (svc *RealService) ToggleCollapsed(si SectionIdx) error {
-	svc.Logger.Info("ToggleCollapsed called", "section", si)
-	if si < 0 || si >= NumSections {
-		return fmt.Errorf("ToggleCollapsed called with out of bounds section id")
+func (svc *RealService) GetDiff(path string) (string, error) {
+	svc.Logger.Info("GetDiff calaled", "path", path)
+	if path == "" {
+		return "", fmt.Errorf("Empty path provided to diff")
+	}
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"diff", path)
+
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("Error running svn diff %s: %w", path, err)
+	}
+	out = bytes.ReplaceAll(out, []byte("\r\n"), []byte("\n")) // normalize line endings
+
+	sep := []byte("====\n")
+	idx := bytes.Index(out, sep)
+	if idx < 0 {
+		return "", fmt.Errorf("separator for diff not found")
 	}
 
-	svc.RepoStatus.Sections[si].Collapsed = !svc.RepoStatus.Sections[si].Collapsed
+	changeSep := []byte("\n@@")
+	idx = bytes.Index(out, changeSep)
+	if idx < 0 {
+		return "", nil
+	}
+
+	diff := string(out[idx+1:])
+	return diff, nil
+}
+
+func (svc *RealService) ToggleExpanded(si SectionIdx) error {
+	svc.Logger.Info("ToggleExpanded called", "section", si)
+	if si < 0 || si >= NumSections {
+		return fmt.Errorf("ToggleExpanded called with out of bounds section id")
+	}
+
+	svc.RepoStatus.Sections[si].Expanded = !svc.RepoStatus.Sections[si].Expanded
 	return nil
 }
 
@@ -216,14 +260,15 @@ var SectionTitles = [NumSections]string{
 }
 
 type Section struct {
-	Title     string
-	Paths     []PathStatus
-	Collapsed bool
+	Title    string
+	Paths    []PathStatus
+	Expanded bool
 }
 
 type PathStatus struct {
-	Path   string
-	Status rune
+	Path     string
+	Status   rune
+	Expanded bool
 }
 
 type RepoStatus struct {
