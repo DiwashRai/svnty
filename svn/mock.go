@@ -33,14 +33,22 @@ func (svc *MockService) UnstagePath(path string) error {
 	return nil
 }
 
-func (svc *MockService) GetDiff(path string) (string, error) {
-	return "", nil
+func (svc *MockService) FetchDiff(path string) error {
+	return nil
+}
+
+func (svc *MockService) GetDiff(path string) []string {
+	return nil
 }
 
 func (svc *MockService) GetPathStatus(si SectionIdx, idx int) (PathStatus, error) {
 	return PathStatus{}, nil
 }
 
-func (svc *MockService) ToggleExpanded(si SectionIdx) error {
+func (svc *MockService) ToggleSectionExpand(si SectionIdx) error {
+	return nil
+}
+
+func (svc *MockService) TogglePathExpand(si SectionIdx, pathIdx int) error {
 	return nil
 }

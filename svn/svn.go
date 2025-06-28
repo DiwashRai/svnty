@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"os/exec"
 )
@@ -17,15 +18,18 @@ type Service interface {
 	FetchStatus() error
 	StagePath(string) error
 	UnstagePath(string) error
-	GetDiff(string) (string, error)
+	FetchDiff(string) error
+	GetDiff(string) []string
 	GetPathStatus(SectionIdx, int) (PathStatus, error)
-	ToggleExpanded(SectionIdx) error
+	ToggleSectionExpand(SectionIdx) error
+	TogglePathExpand(SectionIdx, int) error
 }
 
 type RealService struct {
 	RepoInfo   RepoInfo
 	RepoStatus RepoStatus
 	Logger     *slog.Logger
+	diffCache  map[string][]string
 }
 
 func (svc *RealService) Init() {
@@ -36,6 +40,9 @@ func (svc *RealService) Init() {
 		svc.RepoStatus.Sections[i].Expanded = true
 	}
 	svc.RepoStatus.Sections[SectionUnversioned].Expanded = false
+	if svc.diffCache == nil {
+		svc.diffCache = make(map[string][]string)
+	}
 }
 
 func (svc *RealService) CurrentInfo() RepoInfo {
@@ -171,44 +178,75 @@ func (svc *RealService) UnstagePath(path string) error {
 	return nil
 }
 
-func (svc *RealService) GetDiff(path string) (string, error) {
-	svc.Logger.Info("GetDiff calaled", "path", path)
+func (svc *RealService) FetchDiff(path string) error {
+	svc.Logger.Info("FetchDiff called", "path", path)
 	if path == "" {
-		return "", fmt.Errorf("Empty path provided to diff")
+		return fmt.Errorf("Empty path provided to diff")
 	}
+
+	if _, ok := svc.diffCache[path]; ok {
+		return nil
+	}
+
+	svc.Logger.Info("diff not in diffCache, fetching with svn diff command")
 	cmd := exec.Command(
 		"svn", "--non-interactive",
 		"diff", path)
 
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("Error running svn diff %s: %w", path, err)
+		return fmt.Errorf("Error running svn diff %s: %w", path, err)
 	}
 	out = bytes.ReplaceAll(out, []byte("\r\n"), []byte("\n")) // normalize line endings
 
 	sep := []byte("====\n")
 	idx := bytes.Index(out, sep)
 	if idx < 0 {
-		return "", fmt.Errorf("separator for diff not found")
+		return fmt.Errorf("separator for diff not found")
 	}
 
 	changeSep := []byte("\n@@")
 	idx = bytes.Index(out, changeSep)
 	if idx < 0 {
-		return "", nil
+		empty := []string{""} // empty string so we can still toggle expand
+		svc.diffCache[path] = empty
+		return nil
 	}
 
 	diff := string(out[idx+1:])
-	return diff, nil
+	lines := strings.Split(diff, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	svc.diffCache[path] = lines
+
+	return nil
 }
 
-func (svc *RealService) ToggleExpanded(si SectionIdx) error {
-	svc.Logger.Info("ToggleExpanded called", "section", si)
+func (svc *RealService) GetDiff(path string) []string {
+	return svc.diffCache[path]
+}
+
+func (svc *RealService) ToggleSectionExpand(si SectionIdx) error {
+	svc.Logger.Info("ToggleSectionExpand called", "section", si)
 	if si < 0 || si >= NumSections {
-		return fmt.Errorf("ToggleExpanded called with out of bounds section id")
+		return fmt.Errorf("ToggleSectionExpand called with out of bounds section id")
 	}
 
 	svc.RepoStatus.Sections[si].Expanded = !svc.RepoStatus.Sections[si].Expanded
+	return nil
+}
+
+func (svc *RealService) TogglePathExpand(si SectionIdx, pathIdx int) error {
+	svc.Logger.Info("TogglePathExpand called", "section", si, "pathIdx", pathIdx)
+	if si < 0 || si >= NumSections {
+		return fmt.Errorf("GetPath with out of bounds section id called")
+	}
+	if pathIdx < 0 || pathIdx >= len(svc.RepoStatus.Sections[si].Paths) {
+		return fmt.Errorf("GetPath with out of bounds idx called")
+	}
+	svc.RepoStatus.Sections[si].Paths[pathIdx].Expanded =
+		!svc.RepoStatus.Sections[si].Paths[pathIdx].Expanded
 	return nil
 }
 
@@ -292,6 +330,24 @@ func (rs *RepoStatus) Len(si SectionIdx) int {
 		return 0
 	}
 	return len(rs.Sections[si].Paths)
+}
+
+func (rs *RepoStatus) NextNonEmptySection(curr SectionIdx) (next SectionIdx, found bool) {
+	for sec := curr + 1; sec < NumSections; sec++ {
+		if len(rs.Sections[sec].Paths) > 0 {
+			return sec, true
+		}
+	}
+	return 0, false
+}
+
+func (rs *RepoStatus) PrevNonEmptySection(curr SectionIdx) (prev SectionIdx, found bool) {
+	for sec := curr - 1; sec >= 0; sec-- {
+		if len(rs.Sections[sec].Paths) > 0 {
+			return sec, true
+		}
+	}
+	return 0, false
 }
 
 func (rs *RepoStatus) Unversioned() Section {

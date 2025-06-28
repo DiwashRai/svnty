@@ -4,6 +4,6 @@ type FetchInfo struct{}
 type FetchStatus struct{}
 
 type RefreshInfo struct{}
-type RefreshStatus struct{}
+type RefreshStatusPanel struct{}
 
 type RenderError error

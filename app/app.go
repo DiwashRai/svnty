@@ -30,7 +30,7 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 		StatusModel: status.Model{
 			SvnService: svc,
 			Logger:     logger,
-			Cursor:     status.Cursor{Item: status.HEADER_IDX},
+			Cursor:     status.Cursor{ElemType: status.HeaderElem},
 		}}
 }
 
@@ -58,7 +58,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.FetchStatus:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
-	case tui.RefreshStatus:
+	case tui.RefreshStatusPanel:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
 	case tui.RenderError:
