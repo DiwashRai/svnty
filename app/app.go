@@ -1,6 +1,7 @@
 package app
 
 import (
+	"github.com/DiwashRai/svnty/commit"
 	"github.com/DiwashRai/svnty/info"
 	"github.com/DiwashRai/svnty/status"
 	"github.com/DiwashRai/svnty/styles"
@@ -13,11 +14,20 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type AppMode int
+
+const (
+	StatusMode AppMode = iota
+	CommitMode
+)
+
 type Model struct {
 	SvnService  svn.Service
 	Logger      *slog.Logger
 	InfoModel   info.Model
 	StatusModel status.Model
+	CommitModel commit.Model
+	Mode        AppMode
 	width       int
 	height      int
 }
@@ -31,7 +41,13 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 			SvnService: svc,
 			Logger:     logger,
 			Cursor:     status.Cursor{ElemType: status.HeaderElem},
-		}}
+		},
+		CommitModel: commit.Model{
+			SvnService: svc,
+			Logger:     logger,
+		},
+		Mode: StatusMode,
+	}
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -55,24 +71,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.StatusModel.Update(msg)
 		return m, nil
-	case tui.FetchStatus:
+	case tui.StatusModeMsg:
+		m.Mode = StatusMode
+		return m, nil
+	case tui.CommitModeMsg:
+		m.Mode = CommitMode
+		return m, nil
+	case tui.FetchStatusMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
-	case tui.RefreshStatusPanel:
+	case tui.RefreshStatusPanelMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
-	case tui.RenderError:
+	case tui.RenderErrorMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		m.Logger.Info(keyStr)
 		switch keyStr {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return m, tea.Quit
 		default:
-			cmd = m.StatusModel.Update(msg)
-			return m, cmd
+			switch m.Mode {
+			case StatusMode:
+				cmd = m.StatusModel.Update(msg)
+				return m, cmd
+			case CommitMode:
+				cmd = m.CommitModel.Update(msg)
+				return m, cmd
+			}
 		}
 	default:
 		m.Logger.Info("Unhandled Msg type.", "type", reflect.TypeOf(msg))
@@ -81,12 +109,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
-	content := tui.JoinVerticalStyled(
-		lipgloss.Left,
-		styles.BaseStyle,
-		m.InfoModel.View(),
-		m.StatusModel.View(),
-	)
+	var content string
+	switch m.Mode {
+	case StatusMode:
+		content = tui.JoinVerticalStyled(
+			lipgloss.Left,
+			styles.BaseStyle,
+			m.InfoModel.View(),
+			m.StatusModel.View(),
+		)
+	case CommitMode:
+		content = tui.JoinVerticalStyled(
+			lipgloss.Left,
+			styles.BaseStyle,
+			m.InfoModel.View(),
+			m.CommitModel.View(),
+		)
+	}
 	m.Logger.Info("App.View()")
 	return styles.BaseStyle.
 		PaddingLeft(1).

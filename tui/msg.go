@@ -1,9 +1,23 @@
 package tui
 
-type FetchInfo struct{}
-type FetchStatus struct{}
+import (
+	tea "github.com/charmbracelet/bubbletea"
+)
 
-type RefreshInfo struct{}
-type RefreshStatusPanel struct{}
+type StatusModeMsg struct{}
+type CommitModeMsg struct{}
 
-type RenderError error
+type FetchInfoMsg struct{}
+type FetchStatusMsg struct{}
+
+type RefreshInfoMsg struct{}
+type RefreshStatusPanelMsg struct{}
+
+type RenderErrorMsg error
+
+func StatusMode() tea.Msg {
+	return StatusModeMsg{}
+}
+func CommitMode() tea.Msg {
+	return CommitModeMsg{}
+}

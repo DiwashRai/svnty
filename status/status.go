@@ -70,22 +70,26 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Height = msg.Height - 6 // info panel size 4 + 1 padding top
-	case tui.FetchStatus:
+	case tui.FetchStatusMsg:
 		return FetchStatusCmd(m.SvnService)
-	case tui.RefreshStatusPanel:
+	case tui.RefreshStatusPanelMsg:
 		return RefreshStatusPanelCmd(m)
-	case tui.RenderError:
+	case tui.RenderErrorMsg:
 		m.Errs = append(m.Errs, msg.Error())
 		return nil
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		switch keyStr {
+		case "c":
+			return tui.CommitMode
 		case "j":
 			m.Down()
 			return nil
 		case "k":
 			m.Up()
 			return nil
+		case "q":
+			return tea.Quit
 		case "s":
 			return m.Stage()
 		case "u":
@@ -282,18 +286,18 @@ func (m *Model) Must(cond bool, msg string) {
 func FetchInfoCmd(s svn.Service) tea.Cmd {
 	return func() tea.Msg {
 		if err := s.FetchInfo(); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.RefreshInfo{}
+		return tui.RefreshInfoMsg{}
 	}
 }
 
 func FetchStatusCmd(s svn.Service) tea.Cmd {
 	return func() tea.Msg {
 		if err := s.FetchStatus(); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.RefreshStatusPanel{}
+		return tui.RefreshStatusPanelMsg{}
 	}
 }
 
@@ -307,27 +311,27 @@ func RefreshStatusPanelCmd(m *Model) tea.Cmd {
 func StagePathCmd(s svn.Service, path string) tea.Cmd {
 	return func() tea.Msg {
 		if err := s.StagePath(path); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.FetchStatus{}
+		return tui.FetchStatusMsg{}
 	}
 }
 
 func UnstagePathCmd(s svn.Service, path string) tea.Cmd {
 	return func() tea.Msg {
 		if err := s.UnstagePath(path); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.FetchStatus{}
+		return tui.FetchStatusMsg{}
 	}
 }
 
 func ToggleSectionExpandCmd(s svn.Service, si svn.SectionIdx) tea.Cmd {
 	return func() tea.Msg {
 		if err := s.ToggleSectionExpand(si); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.RefreshStatusPanel{}
+		return tui.RefreshStatusPanelMsg{}
 	}
 }
 
@@ -335,15 +339,15 @@ func ToggleDiffExpandCmd(s svn.Service, si svn.SectionIdx, pathIdx int) tea.Cmd 
 	return func() tea.Msg {
 		ps, err := s.GetPathStatus(si, pathIdx)
 		if err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
 
 		// case: expanded -> collapsed
 		if ps.Expanded {
 			if err = s.TogglePathExpand(si, pathIdx); err != nil {
-				return tui.RenderError(err)
+				return tui.RenderErrorMsg(err)
 			}
-			return tui.RefreshStatusPanel{}
+			return tui.RefreshStatusPanelMsg{}
 		}
 
 		// case: collapsed -> expanded
@@ -351,12 +355,12 @@ func ToggleDiffExpandCmd(s svn.Service, si svn.SectionIdx, pathIdx int) tea.Cmd 
 			return nil
 		}
 		if err = s.FetchDiff(ps.Path); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
 		if err = s.TogglePathExpand(si, pathIdx); err != nil {
-			return tui.RenderError(err)
+			return tui.RenderErrorMsg(err)
 		}
-		return tui.RefreshStatusPanel{}
+		return tui.RefreshStatusPanelMsg{}
 	}
 }
 
