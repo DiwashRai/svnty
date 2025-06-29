@@ -149,6 +149,7 @@ func (m *Model) View() string {
 		var isSel bool
 		var gutter string
 		var headingStyle, runeStyle, textStyle lipgloss.Style
+		var addedStyle, removedStyle, diffHeaderStyle lipgloss.Style
 		if elem.Type == m.Cursor.ElemType && elem.SectionID == m.Cursor.Section &&
 			elem.PathIdx == m.Cursor.PathIdx && elem.DiffLine == m.Cursor.DiffLine {
 			isSel = true
@@ -157,12 +158,18 @@ func (m *Model) View() string {
 			headingStyle = styles.SelStatusSectionHeading
 			runeStyle = styles.SelStatusRune
 			textStyle = styles.Selected
+			addedStyle = styles.SelAddedStyle
+			removedStyle = styles.SelRemovedStyle
+			diffHeaderStyle = styles.SelDiffHeaderStyle
 		} else {
 			isSel = false
 			gutter = styles.Gutter
 			headingStyle = styles.StatusSectionHeading
 			runeStyle = styles.StatusRune
 			textStyle = styles.BaseStyle
+			addedStyle = styles.AddedStyle
+			removedStyle = styles.RemovedStyle
+			diffHeaderStyle = styles.DiffHeaderStyle
 		}
 
 		b.WriteString(gutter)
@@ -180,7 +187,16 @@ func (m *Model) View() string {
 			b.WriteString(textStyle.Render(elem.Content))
 
 		case DiffElem:
-			b.WriteString(elem.Content)
+			switch {
+			case strings.HasPrefix(elem.Content, "@@"):
+				b.WriteString(diffHeaderStyle.Render(elem.Content))
+			case strings.HasPrefix(elem.Content, "+"):
+				b.WriteString(addedStyle.Render(elem.Content))
+			case strings.HasPrefix(elem.Content, "-"):
+				b.WriteString(removedStyle.Render(elem.Content))
+			default:
+				b.WriteString(textStyle.Render(elem.Content))
+			}
 		case BlankElem:
 		default:
 			m.Logger.Error("Invalid element type encountered")

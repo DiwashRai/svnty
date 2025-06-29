@@ -11,11 +11,14 @@ const (
 	springGreen  = "#98BB6C" // kanagawa: string green
 	sakuraPink   = "#D27E99" // kanagawa: number pink
 	oniViolet    = "#957FB8" // kanagawa: keyword purple
+	waveAqua2    = "#7AA89F" // kanagawa: type color
 	sumiInk3     = "#1F1F28" // kanagawa: bg color
 	sumiInk4     = "#2A2A37" // kanagawa: gutter color
 	surimiOrange = "#FFA066" // kanagawa: const color
 	waveBlue1    = "#223249" // kanagawa: visual block
 	boatYellow2  = "#C0A36E" // kanagawa: terminal yellow
+	autumnGreen  = "#76946A" // kanagawa: vcs added
+	autumnRed    = "#C34043" // kanagawa: vcs removed
 
 	// semantic color assignments
 	BgColor       = sumiInk3
@@ -28,6 +31,10 @@ const (
 	KeywordColor  = oniViolet
 	SpecialColor  = surimiOrange
 	Special2Color = waveRed
+
+	DiffHeaderColor = waveAqua2
+	AddedColor      = autumnGreen
+	RemovedColor    = autumnRed
 
 	ScrollPadding = 2
 )
@@ -76,6 +83,25 @@ var (
 
 	SelStatusRune = StatusRune.
 			Background(lipgloss.Color(BgSelected))
+
+	// diff colors
+	RemovedStyle = BaseStyle.
+			Foreground(lipgloss.Color(RemovedColor))
+
+	SelRemovedStyle = RemovedStyle.
+			Background(lipgloss.Color(BgSelected))
+
+	AddedStyle = BaseStyle.
+			Foreground(lipgloss.Color(AddedColor))
+
+	SelAddedStyle = AddedStyle.
+			Background(lipgloss.Color(BgSelected))
+
+	DiffHeaderStyle = BaseStyle.
+			Foreground(lipgloss.Color(DiffHeaderColor))
+
+	SelDiffHeaderStyle = DiffHeaderStyle.
+				Background(lipgloss.Color(BgSelected))
 
 	// Rendered components
 	Gutter    = GutterStyle.Render("    ") + BaseStyle.Render(" ")
