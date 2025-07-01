@@ -44,11 +44,3 @@ func (svc *MockService) GetDiff(path string) []string {
 func (svc *MockService) GetPathStatus(si SectionIdx, idx int) (PathStatus, error) {
 	return PathStatus{}, nil
 }
-
-func (svc *MockService) ToggleSectionExpand(si SectionIdx) error {
-	return nil
-}
-
-func (svc *MockService) TogglePathExpand(si SectionIdx, pathIdx int) error {
-	return nil
-}

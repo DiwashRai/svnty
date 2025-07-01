@@ -48,6 +48,43 @@ func (c *Cursor) Set(e ElementType, sec svn.SectionIdx, pi, dl int) {
 	c.DiffLine = dl
 }
 
+type Expanded struct {
+	section [svn.NumSections]bool
+	path    map[string]bool
+}
+
+func (e *Expanded) Init() {
+	e.path = make(map[string]bool)
+}
+
+func (e *Expanded) Path(p string) bool {
+	return e.path != nil && e.path[p]
+}
+
+func (e *Expanded) SetPath(p string, b bool) {
+	e.path[p] = b
+}
+
+func (e *Expanded) TogglePath(p string) {
+	val, ok := e.path[p]
+	if !ok {
+		e.path[p] = true
+	}
+	e.path[p] = !val
+}
+
+func (e *Expanded) Section(si svn.SectionIdx) bool {
+	return e.section[si]
+}
+
+func (e *Expanded) SetSection(si svn.SectionIdx, b bool) {
+	e.section[si] = b
+}
+
+func (e *Expanded) ToggleSection(si svn.SectionIdx) {
+	e.section[si] = !e.section[si]
+}
+
 type Model struct {
 	//Width      int
 	Height     int
@@ -58,9 +95,18 @@ type Model struct {
 	Cursor     Cursor
 	Errs       []string
 	Lines      []string
+	Expanded   Expanded
 }
 
 func (m *Model) Init() tea.Cmd {
+	m.Logger.Info("StatusModel.Init() called")
+
+	for i := svn.SectionIdx(0); i < svn.NumSections; i++ {
+		m.Expanded.SetSection(i, true)
+	}
+	m.Expanded.SetSection(svn.SectionUnversioned, false)
+	m.Expanded.Init()
+
 	return nil
 }
 
@@ -221,10 +267,7 @@ func (m *Model) RefreshStatusPanel() {
 			continue
 		}
 
-		headerExpanded := true
-		if !section.Expanded {
-			headerExpanded = false
-		}
+		sectionExpanded := m.Expanded.Section(svn.SectionIdx(secID))
 		m.Panel = append(m.Panel,
 			Element{
 				Type:      HeaderElem,
@@ -233,16 +276,17 @@ func (m *Model) RefreshStatusPanel() {
 				DiffLine:  0,
 				Size:      len(section.Paths),
 				Content:   svn.SectionTitles[secID],
-				Expanded:  headerExpanded,
+				Expanded:  sectionExpanded,
 			},
 		)
 
-		if !section.Expanded {
+		if !sectionExpanded {
 			m.Panel = append(m.Panel, Element{Type: BlankElem})
 			continue
 		}
 
 		for pathIdx, ps := range section.Paths {
+			pathExpanded := m.Expanded.Path(ps.Path)
 			m.Panel = append(m.Panel,
 				Element{
 					Type:      PathElem,
@@ -251,10 +295,10 @@ func (m *Model) RefreshStatusPanel() {
 					DiffLine:  0,
 					Content:   ps.Path,
 					Status:    ps.Status,
-					Expanded:  ps.Expanded,
+					Expanded:  pathExpanded,
 				})
 
-			if !ps.Expanded {
+			if !pathExpanded {
 				continue
 			}
 
@@ -308,34 +352,34 @@ func RefreshStatusPanelCmd(m *Model) tea.Cmd {
 	}
 }
 
-func StagePathCmd(s svn.Service, path string) tea.Cmd {
+func StagePathCmd(m *Model, path string) tea.Cmd {
 	return func() tea.Msg {
-		if err := s.StagePath(path); err != nil {
+		if err := m.SvnService.StagePath(path); err != nil {
 			return tui.RenderErrorMsg(err)
 		}
+		m.Expanded.SetPath(path, false)
 		return tui.FetchStatusMsg{}
 	}
 }
 
-func UnstagePathCmd(s svn.Service, path string) tea.Cmd {
+func UnstagePathCmd(m *Model, path string) tea.Cmd {
 	return func() tea.Msg {
-		if err := s.UnstagePath(path); err != nil {
+		if err := m.SvnService.UnstagePath(path); err != nil {
 			return tui.RenderErrorMsg(err)
 		}
+		m.Expanded.SetPath(path, false)
 		return tui.FetchStatusMsg{}
 	}
 }
 
-func ToggleSectionExpandCmd(s svn.Service, si svn.SectionIdx) tea.Cmd {
+func ToggleSectionExpandCmd(m *Model, si svn.SectionIdx) tea.Cmd {
 	return func() tea.Msg {
-		if err := s.ToggleSectionExpand(si); err != nil {
-			return tui.RenderErrorMsg(err)
-		}
+		m.Expanded.ToggleSection(si)
 		return tui.RefreshStatusPanelMsg{}
 	}
 }
 
-func ToggleDiffExpandCmd(s svn.Service, si svn.SectionIdx, pathIdx int) tea.Cmd {
+func ToggleDiffExpandCmd(s svn.Service, m *Model, si svn.SectionIdx, pathIdx int) tea.Cmd {
 	return func() tea.Msg {
 		ps, err := s.GetPathStatus(si, pathIdx)
 		if err != nil {
@@ -343,10 +387,8 @@ func ToggleDiffExpandCmd(s svn.Service, si svn.SectionIdx, pathIdx int) tea.Cmd 
 		}
 
 		// case: expanded -> collapsed
-		if ps.Expanded {
-			if err = s.TogglePathExpand(si, pathIdx); err != nil {
-				return tui.RenderErrorMsg(err)
-			}
+		if m.Expanded.Path(ps.Path) {
+			m.Expanded.TogglePath(ps.Path)
 			return tui.RefreshStatusPanelMsg{}
 		}
 
@@ -357,9 +399,7 @@ func ToggleDiffExpandCmd(s svn.Service, si svn.SectionIdx, pathIdx int) tea.Cmd 
 		if err = s.FetchDiff(ps.Path); err != nil {
 			return tui.RenderErrorMsg(err)
 		}
-		if err = s.TogglePathExpand(si, pathIdx); err != nil {
-			return tui.RenderErrorMsg(err)
-		}
+		m.Expanded.TogglePath(ps.Path)
 		return tui.RefreshStatusPanelMsg{}
 	}
 }
@@ -377,7 +417,7 @@ func (m *Model) Stage() tea.Cmd {
 			return nil
 		}
 		m.Logger.Info("Returning StagePathCmd", "path", ps.Path)
-		return StagePathCmd(m.SvnService, ps.Path)
+		return StagePathCmd(m, ps.Path)
 	}
 
 	return nil
@@ -398,7 +438,7 @@ func (m *Model) Unstage() tea.Cmd {
 		if err != nil {
 			return nil
 		}
-		return UnstagePathCmd(m.SvnService, ps.Path)
+		return UnstagePathCmd(m, ps.Path)
 	}
 
 	return nil
@@ -409,177 +449,182 @@ func (m *Model) Diff() tea.Cmd {
 	if m.Cursor.ElemType != PathElem {
 		return nil
 	}
-	return ToggleDiffExpandCmd(m.SvnService, m.Cursor.Section, m.Cursor.PathIdx)
+	return ToggleDiffExpandCmd(m.SvnService, m, m.Cursor.Section, m.Cursor.PathIdx)
 }
 
 func (m *Model) ToggleSectionExpand() tea.Cmd {
 	if m.Cursor.ElemType != HeaderElem {
 		return nil
 	}
-	return ToggleSectionExpandCmd(m.SvnService, m.Cursor.Section)
+	return ToggleSectionExpandCmd(m, m.Cursor.Section)
 }
 
 func (m *Model) nextSectionHeader() bool {
-	rs := m.SvnService.CurrentStatus()
-
-	if next, ok := rs.NextNonEmptySection(m.Cursor.Section); ok {
+	if next, ok := m.SvnService.CurrentStatus().NextNonEmptySection(m.Cursor.Section); ok {
 		m.Cursor.Set(HeaderElem, next, 0, 0)
 		return true
 	}
 	return false
 }
 
-func (m *Model) nextPath() bool {
-	rs := m.SvnService.CurrentStatus()
-
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		if rs.Sections[m.Cursor.Section].Expanded && rs.Len(m.Cursor.Section) > 0 {
-			m.Cursor.Set(PathElem, m.Cursor.Section, 0, 0)
-			return true
-		}
-
-	case DiffElem, PathElem:
-		if m.Cursor.PathIdx < rs.Len(m.Cursor.Section)-1 {
-			m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx+1, 0)
-			return true
-		}
+func (m *Model) DownFromHeader() bool {
+	if m.Cursor.ElemType != HeaderElem {
+		return false
 	}
-	return false
+
+	rs := m.SvnService.CurrentStatus()
+	// Section is expanded and has entries. Go to first path
+	if m.Expanded.Section(m.Cursor.Section) && rs.Len(m.Cursor.Section) > 0 {
+		m.Cursor.Set(PathElem, m.Cursor.Section, 0, 0)
+		return true
+	}
+
+	// Current section end reached or empty. Go to next section
+	return m.nextSectionHeader()
 }
 
-func (m *Model) nextDiffLine() bool {
-	getPS := func() (svn.PathStatus, bool) {
-		ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
-		if err != nil {
-			return svn.PathStatus{}, false
-		}
-		return ps, true
+func (m *Model) DownFromPath() bool {
+	if m.Cursor.ElemType != PathElem {
+		return false
 	}
 
-	switch m.Cursor.ElemType {
-	case PathElem:
-		ps, ok := getPS()
-		if !ok {
-			return false
-		}
-		if ps.Expanded {
-			m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
-			return true
-		}
-
-	case DiffElem:
-		ps, ok := getPS()
-		if !ok {
-			return false
-		}
-
-		diffLines := m.SvnService.GetDiff(ps.Path)
-		if m.Cursor.DiffLine < len(diffLines)-1 {
-			m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine+1)
-			return true
-		}
+	ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
+	if err != nil {
+		return false
 	}
-	return false
+	// Path expanded so navigate to first line of diff
+	if m.Expanded.Path(ps.Path) {
+		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
+		return true
+	}
+	// Path not expanded so just go to next path
+	if m.Cursor.PathIdx < m.SvnService.CurrentStatus().Len(m.Cursor.Section)-1 {
+		m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx+1, 0)
+		return true
+	}
+	// Last path of current section reached. Go to next section
+	return m.nextSectionHeader()
+}
+
+func (m *Model) DownFromDiff() bool {
+	if m.Cursor.ElemType != DiffElem {
+		return false
+	}
+
+	ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
+	if err != nil {
+		return false
+	}
+	// Still more lines in current diff
+	diffLines := m.SvnService.GetDiff(ps.Path)
+	if m.Cursor.DiffLine < len(diffLines)-1 {
+		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine+1)
+		return true
+	}
+	// No more lines in diff. Navigate to next path if not at final path
+	rs := m.SvnService.CurrentStatus()
+	if m.Cursor.PathIdx < rs.Len(m.Cursor.Section)-1 {
+		m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx+1, 0)
+		return true
+	}
+
+	return m.nextSectionHeader()
 }
 
 func (m *Model) Down() bool {
-	if m.nextDiffLine() || m.nextPath() || m.nextSectionHeader() {
+	switch m.Cursor.ElemType {
+	case HeaderElem:
+		return m.DownFromHeader()
+	case PathElem:
+		return m.DownFromPath()
+	case DiffElem:
+		return m.DownFromDiff()
+	default:
+		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in Down()")
+	}
+	return false
+}
+
+func (m *Model) upFromHeader() bool {
+	if m.Cursor.ElemType != HeaderElem {
+		return false
+	}
+
+	rs := m.SvnService.CurrentStatus()
+	prevSec, ok := rs.PrevNonEmptySection(m.Cursor.Section)
+	// We are at header of the upper most non empty section. Nothing to move up to
+	if !ok {
+		return false
+	}
+
+	// PrevSec not expanded so navigate straight to header
+	if !m.Expanded.Section(prevSec) {
+		m.Cursor.Set(HeaderElem, prevSec, 0, 0)
 		return true
 	}
-	return false
-}
 
-func (m *Model) prevSectionHeader() bool {
-	rs := m.SvnService.CurrentStatus()
-
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		if prevSec, ok := rs.PrevNonEmptySection(m.Cursor.Section); ok {
-			if !rs.Sections[prevSec].Expanded {
-				m.Cursor.Set(HeaderElem, prevSec, 0, 0)
-				return true
-			}
-		}
-	case PathElem:
-		if m.Cursor.PathIdx == 0 {
-			m.Cursor.Set(HeaderElem, m.Cursor.Section, 0, 0)
-			return true
-		}
+	prevSecSize := rs.Len(prevSec)
+	prevSecLastPath, err := m.SvnService.GetPathStatus(prevSec, prevSecSize-1)
+	if err != nil {
+		return false
 	}
-	return false
-}
 
-func (m *Model) prevPath() bool {
-	rs := m.SvnService.CurrentStatus()
-
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		if prevSec, ok := rs.PrevNonEmptySection(m.Cursor.Section); ok {
-			if rs.Sections[prevSec].Expanded {
-				m.Cursor.Set(PathElem, prevSec, rs.Len(prevSec)-1, 0)
-				return true
-			}
-		}
-
-	case PathElem:
-		if m.Cursor.PathIdx > 0 {
-			m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx-1, 0)
-			return true
-		}
-
-	case DiffElem:
-		if m.Cursor.DiffLine == 0 {
-			m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
-			return true
-		}
+	// PrevPath is collapsed so move up to path
+	if !m.Expanded.Path(prevSecLastPath.Path) {
+		m.Cursor.Set(PathElem, prevSec, prevSecSize-1, 0)
+		return true
 	}
-	return false
+
+	// Path is expanded so move up to last diff line
+	diffLines := m.SvnService.GetDiff(prevSecLastPath.Path)
+	m.Cursor.Set(DiffElem, prevSec, prevSecSize-1, len(diffLines)-1)
+	return true
 }
 
-func (m *Model) prevDiffLine() bool {
-	rs := m.SvnService.CurrentStatus()
+func (m *Model) upFromPath() bool {
+	if m.Cursor.ElemType != PathElem {
+		return false
+	}
 
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		prevSec, ok := rs.PrevNonEmptySection(m.Cursor.Section)
-		if !ok || !rs.Sections[prevSec].Expanded {
-			return false
-		}
-		prevSecSize := rs.Len(prevSec)
-		prevSecLastPath, err := m.SvnService.GetPathStatus(prevSec, prevSecSize-1)
-		if err != nil {
-			return false
-		}
-		if prevSecLastPath.Expanded {
-			diffLines := m.SvnService.GetDiff(prevSecLastPath.Path)
-			m.Cursor.Set(DiffElem, prevSec, prevSecSize-1, len(diffLines)-1)
-			return true
-		}
-
-	case PathElem:
-		prevPath, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx-1)
-		if err != nil {
-			return false
-		}
-		if prevPath.Expanded {
+	prevPath, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx-1)
+	if err == nil {
+		if m.Expanded.Path(prevPath.Path) {
 			diffLines := m.SvnService.GetDiff(prevPath.Path)
 			m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx-1, max(0, len(diffLines)-1))
-			return true
+		} else {
+			m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx-1, 0)
 		}
-
-	case DiffElem:
-		if m.Cursor.DiffLine > 0 {
-			m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine-1)
-			return true
-		}
+		return true
 	}
-	return false
+
+	m.Cursor.Set(HeaderElem, m.Cursor.Section, 0, 0)
+	return true
+}
+
+func (m *Model) upFromDiff() bool {
+	if m.Cursor.ElemType != DiffElem {
+		return false
+	}
+
+	if m.Cursor.DiffLine > 0 {
+		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine-1)
+	} else if m.Cursor.DiffLine == 0 {
+		m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
+	}
+
+	return true
 }
 
 func (m *Model) Up() bool {
-	if m.prevDiffLine() || m.prevPath() || m.prevSectionHeader() {
-		return true
+	switch m.Cursor.ElemType {
+	case HeaderElem:
+		return m.upFromHeader()
+	case PathElem:
+		return m.upFromPath()
+	case DiffElem:
+		return m.upFromDiff()
+	default:
+		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in Up()")
 	}
 	return false
 }
@@ -589,6 +634,9 @@ func (m *Model) ClampCursor() {
 
 	secLen := rs.Len(m.Cursor.Section)
 	if m.Cursor.PathIdx >= secLen || secLen <= 0 {
+		if secLen == 0 {
+			m.Cursor.Set(HeaderElem, m.Cursor.Section, 0, 0)
+		}
 		if !m.Up() && !m.Down() {
 			m.Cursor.Section = 0
 			m.Cursor.PathIdx = 0

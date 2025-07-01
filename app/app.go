@@ -1,14 +1,15 @@
 package app
 
 import (
+	"log/slog"
+	"reflect"
+
 	"github.com/DiwashRai/svnty/commit"
 	"github.com/DiwashRai/svnty/info"
 	"github.com/DiwashRai/svnty/status"
 	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/DiwashRai/svnty/tui"
-	"log/slog"
-	"reflect"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -33,7 +34,7 @@ type Model struct {
 }
 
 func New(svc svn.Service, logger *slog.Logger) Model {
-	return Model{
+	model := Model{
 		SvnService: svc,
 		Logger:     logger,
 		InfoModel:  info.Model{SvnService: svc},
@@ -48,10 +49,14 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 		},
 		Mode: StatusMode,
 	}
+
+	model.CommitModel.Init()
+	return model
 }
 
 func (m *Model) Init() tea.Cmd {
 	m.Logger.Info("App.Init()")
+	m.StatusModel.Init()
 	m.SvnService.Init()
 	return tea.Batch(
 		status.FetchInfoCmd(m.SvnService),
@@ -119,12 +124,15 @@ func (m *Model) View() string {
 			m.StatusModel.View(),
 		)
 	case CommitMode:
-		content = tui.JoinVerticalStyled(
-			lipgloss.Left,
-			styles.BaseStyle,
-			m.InfoModel.View(),
-			m.CommitModel.View(),
-		)
+		/*
+			content = tui.JoinVerticalStyled(
+				lipgloss.Left,
+				styles.BaseStyle,
+				m.InfoModel.View(),
+				m.CommitModel.View(),
+			)
+		*/
+		content = styles.BaseStyle.Render(m.CommitModel.View())
 	}
 	m.Logger.Info("App.View()")
 	return styles.BaseStyle.

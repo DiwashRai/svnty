@@ -21,8 +21,6 @@ type Service interface {
 	FetchDiff(string) error
 	GetDiff(string) []string
 	GetPathStatus(SectionIdx, int) (PathStatus, error)
-	ToggleSectionExpand(SectionIdx) error
-	TogglePathExpand(SectionIdx, int) error
 }
 
 type RealService struct {
@@ -37,9 +35,7 @@ func (svc *RealService) Init() {
 
 	for i := SectionIdx(0); i < NumSections; i++ {
 		svc.RepoStatus.Sections[i].Title = SectionTitles[i]
-		svc.RepoStatus.Sections[i].Expanded = true
 	}
-	svc.RepoStatus.Sections[SectionUnversioned].Expanded = false
 	if svc.diffCache == nil {
 		svc.diffCache = make(map[string][]string)
 	}
@@ -227,29 +223,6 @@ func (svc *RealService) GetDiff(path string) []string {
 	return svc.diffCache[path]
 }
 
-func (svc *RealService) ToggleSectionExpand(si SectionIdx) error {
-	svc.Logger.Info("ToggleSectionExpand called", "section", si)
-	if si < 0 || si >= NumSections {
-		return fmt.Errorf("ToggleSectionExpand called with out of bounds section id")
-	}
-
-	svc.RepoStatus.Sections[si].Expanded = !svc.RepoStatus.Sections[si].Expanded
-	return nil
-}
-
-func (svc *RealService) TogglePathExpand(si SectionIdx, pathIdx int) error {
-	svc.Logger.Info("TogglePathExpand called", "section", si, "pathIdx", pathIdx)
-	if si < 0 || si >= NumSections {
-		return fmt.Errorf("GetPath with out of bounds section id called")
-	}
-	if pathIdx < 0 || pathIdx >= len(svc.RepoStatus.Sections[si].Paths) {
-		return fmt.Errorf("GetPath with out of bounds idx called")
-	}
-	svc.RepoStatus.Sections[si].Paths[pathIdx].Expanded =
-		!svc.RepoStatus.Sections[si].Paths[pathIdx].Expanded
-	return nil
-}
-
 func StatusToRune(status string) (rune, bool) {
 	switch status {
 	case "added":
@@ -298,15 +271,13 @@ var SectionTitles = [NumSections]string{
 }
 
 type Section struct {
-	Title    string
-	Paths    []PathStatus
-	Expanded bool
+	Title string
+	Paths []PathStatus
 }
 
 type PathStatus struct {
-	Path     string
-	Status   rune
-	Expanded bool
+	Path   string
+	Status rune
 }
 
 type RepoStatus struct {
