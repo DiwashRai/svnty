@@ -44,3 +44,6 @@ func (svc *MockService) GetDiff(path string) []string {
 func (svc *MockService) GetPathStatus(si SectionIdx, idx int) (PathStatus, error) {
 	return PathStatus{}, nil
 }
+func (svc *MockService) CommitStaged(msg string) error {
+	return nil
+}

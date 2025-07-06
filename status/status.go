@@ -379,9 +379,9 @@ func ToggleSectionExpandCmd(m *Model, si svn.SectionIdx) tea.Cmd {
 	}
 }
 
-func ToggleDiffExpandCmd(s svn.Service, m *Model, si svn.SectionIdx, pathIdx int) tea.Cmd {
+func ToggleDiffExpandCmd(m *Model) tea.Cmd {
 	return func() tea.Msg {
-		ps, err := s.GetPathStatus(si, pathIdx)
+		ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
 		if err != nil {
 			return tui.RenderErrorMsg(err)
 		}
@@ -389,6 +389,7 @@ func ToggleDiffExpandCmd(s svn.Service, m *Model, si svn.SectionIdx, pathIdx int
 		// case: expanded -> collapsed
 		if m.Expanded.Path(ps.Path) {
 			m.Expanded.TogglePath(ps.Path)
+			m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
 			return tui.RefreshStatusPanelMsg{}
 		}
 
@@ -396,7 +397,7 @@ func ToggleDiffExpandCmd(s svn.Service, m *Model, si svn.SectionIdx, pathIdx int
 		if ps.Status != 'M' && ps.Status != 'A' {
 			return nil
 		}
-		if err = s.FetchDiff(ps.Path); err != nil {
+		if err = m.SvnService.FetchDiff(ps.Path); err != nil {
 			return tui.RenderErrorMsg(err)
 		}
 		m.Expanded.TogglePath(ps.Path)
@@ -446,10 +447,10 @@ func (m *Model) Unstage() tea.Cmd {
 
 func (m *Model) Diff() tea.Cmd {
 	m.Logger.Info("StatusModel.Diff() called")
-	if m.Cursor.ElemType != PathElem {
+	if m.Cursor.ElemType != PathElem && m.Cursor.ElemType != DiffElem {
 		return nil
 	}
-	return ToggleDiffExpandCmd(m.SvnService, m, m.Cursor.Section, m.Cursor.PathIdx)
+	return ToggleDiffExpandCmd(m)
 }
 
 func (m *Model) ToggleSectionExpand() tea.Cmd {

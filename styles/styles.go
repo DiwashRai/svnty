@@ -1,6 +1,10 @@
 package styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 const (
 	// color codes from kanagwa.nvim
@@ -14,6 +18,8 @@ const (
 	waveAqua2    = "#7AA89F" // kanagawa: type color
 	sumiInk3     = "#1F1F28" // kanagawa: bg color
 	sumiInk4     = "#2A2A37" // kanagawa: gutter color
+	sumiInk5     = "#363646" // kanagawa: cursorline
+	sumiInk6     = "#54546D" // kanagawa: linenumber
 	surimiOrange = "#FFA066" // kanagawa: const color
 	waveBlue1    = "#223249" // kanagawa: visual block
 	boatYellow2  = "#C0A36E" // kanagawa: terminal yellow
@@ -21,16 +27,17 @@ const (
 	autumnRed    = "#C34043" // kanagawa: vcs removed
 
 	// semantic color assignments
-	BgColor       = sumiInk3
-	BgAltColor    = sumiInk4
-	BgSelected    = waveBlue1
-	FgColor       = fujiWhite
-	FgDimColor    = oldWhite
-	CommentColor  = fujiGray
-	NumColor      = sakuraPink
-	KeywordColor  = oniViolet
-	SpecialColor  = surimiOrange
-	Special2Color = waveRed
+	BgColor         = sumiInk3
+	BgAltColor      = sumiInk4
+	BgSelected      = sumiInk5
+	FgColor         = fujiWhite
+	FgDimColor      = oldWhite
+	CommentColor    = fujiGray
+	LineNumberColor = sumiInk6
+	NumColor        = sakuraPink
+	KeywordColor    = oniViolet
+	SpecialColor    = surimiOrange
+	Special2Color   = waveRed
 
 	DiffHeaderColor = waveAqua2
 	AddedColor      = autumnGreen
@@ -58,6 +65,14 @@ var (
 
 	Selected = BaseStyle.
 			Background(lipgloss.Color(BgSelected))
+
+	border        = lipgloss.RoundedBorder()
+	borderFgStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(waveAqua2))
+	BorderStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(waveAqua2)).
+			BorderBackground(lipgloss.Color(BgColor))
 
 	// Info panel
 	InfoHeading = BaseStyle.
@@ -120,3 +135,16 @@ var (
 				Background(lipgloss.Color(BgSelected)).
 				Render("▶ ")
 )
+
+func GetBorderTopWithTitle(title string, width int) string {
+	var b strings.Builder
+	b.WriteString(border.TopLeft)
+	b.WriteString(border.Top)
+	b.WriteString(border.Top)
+	b.WriteString(title)
+	for i := 0; i < width-2-len(title); i++ {
+		b.WriteString(border.Top)
+	}
+	b.WriteString(border.TopRight)
+	return borderFgStyle.Render(b.String())
+}

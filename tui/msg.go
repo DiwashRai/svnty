@@ -14,10 +14,25 @@ type RefreshInfoMsg struct{}
 type RefreshStatusPanelMsg struct{}
 
 type RenderErrorMsg error
+type CommitSuccessMsg struct{}
 
 func StatusMode() tea.Msg {
 	return StatusModeMsg{}
 }
 func CommitMode() tea.Msg {
 	return CommitModeMsg{}
+}
+
+func FetchInfo() tea.Msg {
+	return FetchInfoMsg{}
+}
+func FetchStatus() tea.Msg {
+	return FetchStatusMsg{}
+}
+
+func RefreshInfo() tea.Msg {
+	return RefreshInfoMsg{}
+}
+func RefreshStatusPanel() tea.Msg {
+	return RefreshStatusPanelMsg{}
 }

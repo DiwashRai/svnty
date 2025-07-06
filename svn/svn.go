@@ -21,13 +21,15 @@ type Service interface {
 	FetchDiff(string) error
 	GetDiff(string) []string
 	GetPathStatus(SectionIdx, int) (PathStatus, error)
+	CommitStaged(string) error
 }
 
 type RealService struct {
-	RepoInfo   RepoInfo
-	RepoStatus RepoStatus
-	Logger     *slog.Logger
-	diffCache  map[string][]string
+	WorkingCopyPath string
+	RepoInfo        RepoInfo
+	RepoStatus      RepoStatus
+	Logger          *slog.Logger
+	diffCache       map[string][]string
 }
 
 func (svc *RealService) Init() {
@@ -48,7 +50,7 @@ func (svc *RealService) CurrentInfo() RepoInfo {
 func (svc *RealService) FetchInfo() error {
 	cmd := exec.Command(
 		"svn", "--non-interactive",
-		"info", "C:/Code/GitHub/textual-test/", "--xml")
+		"info", svc.WorkingCopyPath, "--xml")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -85,7 +87,7 @@ func (svc *RealService) FetchStatus() error {
 
 	cmd := exec.Command(
 		"svn", "--non-interactive",
-		"status", "C:/Code/GitHub/textual-test/", "--xml")
+		"status", svc.WorkingCopyPath, "--xml")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -221,6 +223,34 @@ func (svc *RealService) FetchDiff(path string) error {
 
 func (svc *RealService) GetDiff(path string) []string {
 	return svc.diffCache[path]
+}
+
+func (svc *RealService) CommitStaged(msg string) error {
+	if svc.RepoStatus.Len(SectionStaged) == 0 {
+		return fmt.Errorf("No files staged to commit")
+	}
+
+	if len(msg) == 0 {
+		return fmt.Errorf("Commit message cannot be empty")
+	}
+
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"commit", svc.WorkingCopyPath,
+		"--changelist", "staged",
+		"-m", msg)
+
+	_, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// exitErr.Stderr is a []byte with SVN’s error text
+			stderrText := strings.TrimSpace(string(exitErr.Stderr))
+			return fmt.Errorf("error running commit staged: %s", stderrText)
+		}
+		return fmt.Errorf("error running commit staged: %w", err)
+	}
+
+	return nil
 }
 
 func StatusToRune(status string) (rune, bool) {

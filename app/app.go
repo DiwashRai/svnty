@@ -82,6 +82,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.CommitModeMsg:
 		m.Mode = CommitMode
 		return m, nil
+	case tui.CommitSuccessMsg:
+		return m, tea.Batch(tui.FetchStatus, tui.StatusMode)
 	case tui.FetchStatusMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
@@ -132,7 +134,11 @@ func (m *Model) View() string {
 				m.CommitModel.View(),
 			)
 		*/
-		content = styles.BaseStyle.Render(m.CommitModel.View())
+		content = tui.JoinVerticalStyled(
+			lipgloss.Left,
+			styles.BaseStyle,
+			styles.BaseStyle.Render(m.CommitModel.View()),
+		)
 	}
 	m.Logger.Info("App.View()")
 	return styles.BaseStyle.
