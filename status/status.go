@@ -86,7 +86,7 @@ func (e *Expanded) ToggleSection(si svn.SectionIdx) {
 }
 
 type Model struct {
-	//Width      int
+	Width      int
 	Height     int
 	YOffset    int
 	SvnService svn.Service
@@ -115,6 +115,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.Width = msg.Width
 		m.Height = msg.Height - 6 // info panel size 4 + 1 padding top
 	case tui.FetchStatusMsg:
 		return FetchStatusCmd(m.SvnService)
@@ -172,6 +173,25 @@ func clamp(v, low, high int) int {
 		low, high = high, low
 	}
 	return min(high, max(low, v))
+}
+
+func (m *Model) truncateIfNeeded(content string) string {
+	// padding on left is 1
+	availableWidth := m.Width - (styles.GutterLen + 1)
+	if availableWidth <= 0 {
+		return content
+	}
+
+	if len(content) <= availableWidth {
+		return content
+	}
+
+	// Reserve 3 chars for "..."
+	if availableWidth <= 3 {
+		return "..."
+	}
+
+	return content[:availableWidth-3] + "..."
 }
 
 func (m *Model) visibleLines(cursorIdx, padding int) (lines []string) {
@@ -237,15 +257,16 @@ func (m *Model) View() string {
 			b.WriteString(textStyle.Render(elem.Content))
 
 		case DiffElem:
+			truncatedContent := m.truncateIfNeeded(elem.Content)
 			switch {
 			case strings.HasPrefix(elem.Content, "@@"):
-				b.WriteString(diffHeaderStyle.Render(elem.Content))
+				b.WriteString(diffHeaderStyle.Render(truncatedContent))
 			case strings.HasPrefix(elem.Content, "+"):
-				b.WriteString(addedStyle.Render(elem.Content))
+				b.WriteString(addedStyle.Render(truncatedContent))
 			case strings.HasPrefix(elem.Content, "-"):
-				b.WriteString(removedStyle.Render(elem.Content))
+				b.WriteString(removedStyle.Render(truncatedContent))
 			default:
-				b.WriteString(textStyle.Render(elem.Content))
+				b.WriteString(textStyle.Render(truncatedContent))
 			}
 		case BlankElem:
 		default:
