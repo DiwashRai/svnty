@@ -119,6 +119,7 @@ var (
 				Background(lipgloss.Color(BgSelected))
 
 	// Rendered components
+	GutterLen = 5
 	Gutter    = GutterStyle.Render("    ") + BaseStyle.Render(" ")
 	SelGutter = GutterStyle.
 			Bold(true).
