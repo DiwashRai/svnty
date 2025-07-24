@@ -44,8 +44,9 @@ func New(svc svn.Service, logger *slog.Logger) Model {
 			Cursor:     status.Cursor{ElemType: status.HeaderElem},
 		},
 		CommitModel: commit.Model{
-			SvnService: svc,
-			Logger:     logger,
+			SvnService:    svc,
+			Logger:        logger,
+			CommitHistory: svn.NewCommitHistory(logger),
 		},
 		Mode: StatusMode,
 	}
@@ -98,6 +99,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Logger.Info(keyStr)
 		switch keyStr {
 		case "ctrl+c":
+			m.CommitModel.SaveDraft()
 			return m, tea.Quit
 		default:
 			switch m.Mode {

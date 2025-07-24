@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	MaxHistorySize = 10
+	MaxHistorySize  = 10
+	HistoryFileName = "commit_history.json"
 )
 
 type CommitHistory struct {
@@ -42,7 +43,7 @@ func NewCommitHistory(logger *slog.Logger) CommitHistory {
 		}
 	}
 
-	historyFile := filepath.Join(svntyDir, "commit_history.json")
+	historyFile := filepath.Join(svntyDir, HistoryFileName)
 	history := CommitHistory{
 		Messages:    []string{},
 		disabled:    false,
@@ -92,11 +93,19 @@ func (ch *CommitHistory) SetDraftMessage(msg string) {
 	ch.DraftMessage = msg
 }
 
-func (ch *CommitHistory) SaveToFile() error {
-	jsonData, err := json.MarshalIndent(ch, "", "  ")
-	if err != nil {
-		return err
+func (ch *CommitHistory) SaveToFile() {
+	if ch.disabled {
+		return
 	}
 
-	return os.WriteFile(ch.historyFile, jsonData, 0644)
+	jsonData, err := json.MarshalIndent(ch, "", "  ")
+	if err != nil {
+		ch.logger.Warn("Failed to marshal commit history to JSON", "error", err)
+		return
+	}
+
+	err = os.WriteFile(ch.historyFile, jsonData, 0644)
+	if err != nil {
+		ch.logger.Warn("Failed to write commit history file", "error", err, "file", ch.historyFile)
+	}
 }

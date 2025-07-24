@@ -27,11 +27,12 @@ const (
 )
 
 type Model struct {
-	SvnService svn.Service
-	Logger     *slog.Logger
-	textarea   textarea.Model
-	msglist    list.Model
-	Mode       CommitMode
+	SvnService    svn.Service
+	Logger        *slog.Logger
+	textarea      textarea.Model
+	msglist       list.Model
+	Mode          CommitMode
+	CommitHistory svn.CommitHistory
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -85,6 +86,9 @@ func CommitStagedCmd(m *Model) tea.Cmd {
 		if err != nil {
 			return tui.RenderErrorMsg(err)
 		}
+
+		m.CommitHistory.AddMessage(m.textarea.Value())
+		m.CommitHistory.SaveToFile()
 		m.textarea.SetValue("")
 		return tui.CommitSuccessMsg{}
 	}
@@ -92,6 +96,16 @@ func CommitStagedCmd(m *Model) tea.Cmd {
 
 func (m *Model) Submit() tea.Cmd {
 	return CommitStagedCmd(m)
+}
+
+func (m *Model) SaveDraft() {
+	draftMsg := m.textarea.Value()
+	if len(draftMsg) == 0 {
+		return
+	}
+
+	m.CommitHistory.SetDraftMessage(draftMsg)
+	m.CommitHistory.SaveToFile()
 }
 
 func getTextAreaStyle() (textarea.Style, textarea.Style) {
