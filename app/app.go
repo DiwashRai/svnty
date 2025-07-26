@@ -85,6 +85,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tui.CommitSuccessMsg:
 		return m, tea.Batch(tui.FetchStatus, tui.StatusMode)
+	case tui.QuitMsg:
+		m.CommitModel.SaveDraft()
+		return m, tea.Quit
 	case tui.FetchStatusMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
@@ -99,8 +102,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Logger.Info(keyStr)
 		switch keyStr {
 		case "ctrl+c":
-			m.CommitModel.SaveDraft()
-			return m, tea.Quit
+			return m, tui.Quit
 		default:
 			switch m.Mode {
 			case StatusMode:

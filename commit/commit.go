@@ -40,7 +40,11 @@ type Model struct {
 
 type ItemType string
 
-func (i ItemType) FilterValue() string { return "" }
+func (i ItemType) FilterValue() string { return string(i) }
+
+func NewItem(msg string) list.Item {
+	return ItemType(msg)
+}
 
 type itemDelegate struct{}
 
@@ -56,12 +60,12 @@ func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
 	return nil
 }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	i, ok := item.(ItemType)
+	li, ok := item.(ItemType)
 	if !ok {
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i)
+	str := fmt.Sprintf("%d. %s", index+1, li)
 
 	fn := itemStyle.Render
 	if index == m.Index() {
@@ -71,8 +75,16 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	}
 
 	displayStr := fn(str)
-	displayStr = displayStr[:len(displayStr)-4] // remove the resetall terminal code
+	displayStr = displayStr[:len(displayStr)-4] // remove the resetAll terminal code
 	fmt.Fprint(w, displayStr)
+}
+
+func (m *Model) buildHistoryItems() []list.Item {
+	items := []list.Item{}
+	for _, msg := range m.CommitHistory.GetHistory() {
+		items = append(items, NewItem(msg))
+	}
+	return items
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -86,10 +98,7 @@ func (m *Model) Init() tea.Cmd {
 	ti.Focus()
 	m.textarea = ti
 
-	historyItems := []list.Item{}
-	for _, msg := range m.CommitHistory.GetHistory() {
-		historyItems = append(historyItems, list.Item(ItemType(msg)))
-	}
+	historyItems := m.buildHistoryItems()
 	historyList := list.New(historyItems, itemDelegate{}, 10, 40)
 	historyList.SetShowTitle(false)
 	historyList.SetShowStatusBar(false)
@@ -111,6 +120,13 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			return tui.StatusMode
 		case "tab":
 			return m.Submit()
+		case "up":
+			m.msglist.CursorUp()
+		case "down":
+			m.msglist.CursorDown()
+		case "right":
+			itemStr := string(m.msglist.SelectedItem().FilterValue())
+			m.textarea.SetValue(m.textarea.Value() + itemStr)
 		default:
 			m.textarea, cmd = m.textarea.Update(msg)
 			return cmd
@@ -160,7 +176,7 @@ func (m *Model) SaveDraft() {
 		return
 	}
 
-	m.CommitHistory.SetDraftMessage(draftMsg)
+	m.CommitHistory.AddMessage(draftMsg)
 	m.CommitHistory.SaveToFile()
 }
 

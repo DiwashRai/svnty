@@ -15,6 +15,7 @@ type RefreshStatusPanelMsg struct{}
 
 type RenderErrorMsg error
 type CommitSuccessMsg struct{}
+type QuitMsg struct{}
 
 func StatusMode() tea.Msg {
 	return StatusModeMsg{}
@@ -35,4 +36,8 @@ func RefreshInfo() tea.Msg {
 }
 func RefreshStatusPanel() tea.Msg {
 	return RefreshStatusPanelMsg{}
+}
+
+func Quit() tea.Msg {
+	return QuitMsg{}
 }

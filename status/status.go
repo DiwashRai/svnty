@@ -136,7 +136,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			m.Up()
 			return nil
 		case "q":
-			return tea.Quit
+			return tui.Quit
 		case "s":
 			return m.Stage()
 		case "u":

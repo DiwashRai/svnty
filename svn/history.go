@@ -14,11 +14,10 @@ const (
 )
 
 type CommitHistory struct {
-	Messages     []string `json:"messages"`
-	DraftMessage string   `json:"draft_message"`
-	disabled     bool
-	historyFile  string
-	logger       *slog.Logger
+	Messages    []string `json:"messages"`
+	disabled    bool
+	historyFile string
+	logger      *slog.Logger
 }
 
 func NewCommitHistory(logger *slog.Logger) CommitHistory {
@@ -83,14 +82,6 @@ func (ch *CommitHistory) AddMessage(msg string) {
 	if len(ch.Messages) > MaxHistorySize {
 		ch.Messages = ch.Messages[:MaxHistorySize]
 	}
-}
-
-func (ch *CommitHistory) GetDraftMessage() string {
-	return ch.DraftMessage
-}
-
-func (ch *CommitHistory) SetDraftMessage(msg string) {
-	ch.DraftMessage = msg
 }
 
 func (ch *CommitHistory) SaveToFile() {
