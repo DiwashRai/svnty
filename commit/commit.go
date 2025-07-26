@@ -1,7 +1,10 @@
 package commit
 
 import (
+	"fmt"
+	"io"
 	"log/slog"
+	"strings"
 
 	"github.com/DiwashRai/svnty/styles"
 	"github.com/DiwashRai/svnty/svn"
@@ -35,6 +38,43 @@ type Model struct {
 	CommitHistory svn.CommitHistory
 }
 
+type ItemType string
+
+func (i ItemType) FilterValue() string { return "" }
+
+type itemDelegate struct{}
+
+var (
+	itemStyle         = styles.BaseStyle.PaddingLeft(4)
+	selectedItemStyle = styles.BaseStyle.PaddingLeft(2).
+				Foreground(lipgloss.Color(styles.CommitListSelColor))
+)
+
+func (d itemDelegate) Height() int  { return 1 }
+func (d itemDelegate) Spacing() int { return 0 }
+func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd {
+	return nil
+}
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	i, ok := item.(ItemType)
+	if !ok {
+		return
+	}
+
+	str := fmt.Sprintf("%d. %s", index+1, i)
+
+	fn := itemStyle.Render
+	if index == m.Index() {
+		fn = func(s ...string) string {
+			return selectedItemStyle.Render("> " + strings.Join(s, " "))
+		}
+	}
+
+	displayStr := fn(str)
+	displayStr = displayStr[:len(displayStr)-4] // remove the resetall terminal code
+	fmt.Fprint(w, displayStr)
+}
+
 func (m *Model) Init() tea.Cmd {
 	ti := textarea.New()
 	ti.ShowLineNumbers = true
@@ -45,6 +85,17 @@ func (m *Model) Init() tea.Cmd {
 	ti.SetHeight(8)
 	ti.Focus()
 	m.textarea = ti
+
+	historyItems := []list.Item{}
+	for _, msg := range m.CommitHistory.GetHistory() {
+		historyItems = append(historyItems, list.Item(ItemType(msg)))
+	}
+	historyList := list.New(historyItems, itemDelegate{}, 10, 40)
+	historyList.SetShowTitle(false)
+	historyList.SetShowStatusBar(false)
+	historyList.SetShowHelp(false)
+	m.msglist = historyList
+
 	return nil
 }
 
@@ -77,7 +128,12 @@ func (m *Model) View() string {
 		BorderBottom(true).
 		Render(m.textarea.View())
 
-	return lipgloss.JoinVertical(lipgloss.Left, commitTop, commitPanel)
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		commitTop,
+		commitPanel,
+		m.msglist.View(),
+	)
 }
 
 func CommitStagedCmd(m *Model) tea.Cmd {

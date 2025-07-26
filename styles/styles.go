@@ -39,9 +39,10 @@ const (
 	SpecialColor    = surimiOrange
 	Special2Color   = waveRed
 
-	DiffHeaderColor = waveAqua2
-	AddedColor      = autumnGreen
-	RemovedColor    = autumnRed
+	DiffHeaderColor    = waveAqua2
+	AddedColor         = autumnGreen
+	RemovedColor       = autumnRed
+	CommitListSelColor = waveAqua2
 
 	ScrollPadding = 2
 )
@@ -124,7 +125,7 @@ var (
 	SelGutter = GutterStyle.
 			Bold(true).
 			Foreground(lipgloss.Color(boatYellow2)).
-			Render(" => ") + BaseStyle.Render(" ")
+			Render(" -> ") + BaseStyle.Render(" ")
 
 	ExpandedHeader    = Comment.Render("⯆ ")
 	SelExpandedHeader = Comment.
