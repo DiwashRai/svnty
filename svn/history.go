@@ -78,6 +78,10 @@ func (ch *CommitHistory) GetHistory() []string {
 }
 
 func (ch *CommitHistory) AddMessage(msg string) {
+	if slices.Contains(ch.Messages, msg) {
+		return
+	}
+
 	ch.Messages = slices.Insert(ch.Messages, 0, msg)
 	if len(ch.Messages) > MaxHistorySize {
 		ch.Messages = ch.Messages[:MaxHistorySize]

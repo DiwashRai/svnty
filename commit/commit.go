@@ -16,10 +16,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	maxDisplayLength = 72
+	commitPanelWidth = 77 // 72 + 4(linenumber gutter) + 1(padding left)
+)
+
 var (
-	border           = lipgloss.RoundedBorder()
-	commitPanelWidth = 77 // 72 + 1(eol) + 4(linenumber gutter)
-	commitTop        = styles.GetBorderTopWithTitle("Commit Message", commitPanelWidth)
+	border    = lipgloss.RoundedBorder()
+	commitTop = styles.GetBorderTopWithTitle("Commit Message", commitPanelWidth)
 )
 
 type CommitMode int
@@ -38,12 +42,22 @@ type Model struct {
 	CommitHistory svn.CommitHistory
 }
 
-type ItemType string
+type ItemType struct {
+	DisplayText string
+	FullMessage string
+}
 
-func (i ItemType) FilterValue() string { return string(i) }
+func (i ItemType) FilterValue() string { return i.FullMessage }
 
 func NewItem(msg string) list.Item {
-	return ItemType(msg)
+	displayText := strings.ReplaceAll(msg, "\n", " ")
+	if len(displayText) > maxDisplayLength {
+		displayText = displayText[:maxDisplayLength-3] + "..."
+	}
+	return ItemType{
+		DisplayText: displayText,
+		FullMessage: msg,
+	}
 }
 
 type itemDelegate struct{}
@@ -65,7 +79,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, li)
+	str := fmt.Sprintf("%d. %s", index+1, li.DisplayText)
 
 	fn := itemStyle.Render
 	if index == m.Index() {
@@ -118,15 +132,18 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		switch keyStr {
 		case "esc":
 			return tui.StatusMode
-		case "tab":
+		case "ctrl+d": // [d]o Commit
 			return m.Submit()
-		case "up":
+		case "up", "ctrl+k":
 			m.msglist.CursorUp()
-		case "down":
+		case "down", "ctrl+j":
 			m.msglist.CursorDown()
-		case "right":
-			itemStr := string(m.msglist.SelectedItem().FilterValue())
-			m.textarea.SetValue(m.textarea.Value() + itemStr)
+		case "tab":
+			if selectedItem, ok := m.msglist.SelectedItem().(ItemType); ok {
+				m.textarea.SetValue(m.textarea.Value() + selectedItem.FullMessage)
+			}
+		case "ctrl+r": // [r]eset message
+			m.textarea.SetValue("")
 		default:
 			m.textarea, cmd = m.textarea.Update(msg)
 			return cmd
