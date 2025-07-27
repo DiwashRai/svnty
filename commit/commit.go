@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"regexp"
 	"strings"
 
 	"github.com/DiwashRai/svnty/styles"
@@ -169,6 +170,18 @@ func (m *Model) View() string {
 	)
 }
 
+func sanitizeMessage(msg string) string {
+	// Convert \r\n to \n
+	msg = strings.ReplaceAll(msg, "\r\n", "\n")
+
+	// Remove control characters except \n and \t
+	controlCharsRegex := regexp.MustCompile(`[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]`)
+	msg = controlCharsRegex.ReplaceAllString(msg, "")
+
+	// Trim whitespace
+	return strings.TrimSpace(msg)
+}
+
 func CommitStagedCmd(m *Model) tea.Cmd {
 	return func() tea.Msg {
 		err := m.SvnService.CommitStaged(m.textarea.Value())
@@ -176,7 +189,8 @@ func CommitStagedCmd(m *Model) tea.Cmd {
 			return tui.RenderErrorMsg(err)
 		}
 
-		m.CommitHistory.AddMessage(m.textarea.Value())
+		sanitizedMsg := sanitizeMessage(m.textarea.Value())
+		m.CommitHistory.AddMessage(sanitizedMsg)
 		m.CommitHistory.SaveToFile()
 		m.textarea.SetValue("")
 		return tui.CommitSuccessMsg{}
@@ -188,7 +202,7 @@ func (m *Model) Submit() tea.Cmd {
 }
 
 func (m *Model) SaveDraft() {
-	draftMsg := m.textarea.Value()
+	draftMsg := sanitizeMessage(m.textarea.Value())
 	if len(draftMsg) == 0 {
 		return
 	}
