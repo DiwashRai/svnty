@@ -23,6 +23,10 @@ const (
 	BlankElem // used for blank lines between sections
 )
 
+const (
+	pageSize = 10 // for page up/down navigation
+)
+
 type Element struct {
 	Type      ElementType
 	SectionID svn.SectionIdx
@@ -694,7 +698,19 @@ func (m *Model) PageUpFromPath() bool {
 }
 
 func (m *Model) PageUpFromDiff() bool {
-	return false
+	if m.Cursor.ElemType != DiffElem {
+		return false
+	}
+
+	// Try to move up 10 diff lines
+	if m.Cursor.DiffLine >= pageSize {
+		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine-pageSize)
+		return true
+	}
+
+	// Less than 10 lines up, go to current path
+	m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
+	return true
 }
 
 func (m *Model) PageDownFromHeader() bool {
@@ -706,6 +722,37 @@ func (m *Model) PageDownFromPath() bool {
 }
 
 func (m *Model) PageDownFromDiff() bool {
+	if m.Cursor.ElemType != DiffElem {
+		return false
+	}
+
+	ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
+	if err != nil {
+		return false
+	}
+	diffLines := m.SvnService.GetDiff(ps.Path)
+
+	// Try to move down 10 diff lines
+	if m.Cursor.DiffLine+pageSize < len(diffLines) {
+		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine+pageSize)
+		return true
+	}
+
+	// Less than 10 lines down, go to next path or next section
+	rs := m.SvnService.CurrentStatus()
+	if m.Cursor.PathIdx < rs.Len(m.Cursor.Section)-1 {
+		m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx+1, 0)
+		return true
+	}
+
+	// No next path, go to next section header
+	if next, ok := rs.NextNonEmptySection(m.Cursor.Section); ok {
+		m.Cursor.Set(HeaderElem, next, 0, 0)
+		return true
+	}
+
+	// No next path or next section header. Go to bottom of current diff
+	m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, len(diffLines)-1)
 	return false
 }
 
