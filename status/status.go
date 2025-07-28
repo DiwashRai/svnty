@@ -129,11 +129,17 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		switch keyStr {
 		case "c":
 			return tui.CommitMode
-		case "j":
+		case "k", "up":
+			m.Up()
+			return nil
+		case "j", "down":
 			m.Down()
 			return nil
-		case "k":
-			m.Up()
+		case "pgup":
+			m.PageUp()
+			return nil
+		case "pgdown":
+			m.PageDown()
 			return nil
 		case "q":
 			return tui.Quit
@@ -648,6 +654,58 @@ func (m *Model) Up() bool {
 	default:
 		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in Up()")
 	}
+	return false
+}
+
+func (m *Model) PageUp() bool {
+	switch m.Cursor.ElemType {
+	case HeaderElem:
+		return m.PageUpFromHeader()
+	case PathElem:
+		return m.PageUpFromPath()
+	case DiffElem:
+		return m.PageUpFromDiff()
+	default:
+		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in PageUp()")
+	}
+	return false
+}
+
+func (m *Model) PageDown() bool {
+	switch m.Cursor.ElemType {
+	case HeaderElem:
+		return m.PageDownFromHeader()
+	case PathElem:
+		return m.PageDownFromPath()
+	case DiffElem:
+		return m.PageDownFromDiff()
+	default:
+		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in PageDown()")
+	}
+	return false
+}
+
+func (m *Model) PageUpFromHeader() bool {
+	return false
+}
+
+func (m *Model) PageUpFromPath() bool {
+	return false
+}
+
+func (m *Model) PageUpFromDiff() bool {
+	return false
+}
+
+func (m *Model) PageDownFromHeader() bool {
+	return false
+}
+
+func (m *Model) PageDownFromPath() bool {
+	return false
+}
+
+func (m *Model) PageDownFromDiff() bool {
 	return false
 }
 
