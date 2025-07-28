@@ -139,10 +139,10 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		case "j", "down":
 			m.Down()
 			return nil
-		case "pgup":
+		case "pgup", "ctrl+u":
 			m.PageUp()
 			return nil
-		case "pgdown":
+		case "pgdown", "ctrl+d":
 			m.PageDown()
 			return nil
 		case "q":
@@ -662,98 +662,27 @@ func (m *Model) Up() bool {
 }
 
 func (m *Model) PageUp() bool {
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		return m.PageUpFromHeader()
-	case PathElem:
-		return m.PageUpFromPath()
-	case DiffElem:
-		return m.PageUpFromDiff()
-	default:
-		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in PageUp()")
+	moved := false
+	for i := 0; i < pageSize; i++ {
+		if m.Up() {
+			moved = true
+		} else {
+			break
+		}
 	}
-	return false
+	return moved
 }
 
 func (m *Model) PageDown() bool {
-	switch m.Cursor.ElemType {
-	case HeaderElem:
-		return m.PageDownFromHeader()
-	case PathElem:
-		return m.PageDownFromPath()
-	case DiffElem:
-		return m.PageDownFromDiff()
-	default:
-		m.Errs = append(m.Errs, "Invalid Cursor ElementType encountered in PageDown()")
+	moved := false
+	for i := 0; i < pageSize; i++ {
+		if m.Down() {
+			moved = true
+		} else {
+			break
+		}
 	}
-	return false
-}
-
-func (m *Model) PageUpFromHeader() bool {
-	return false
-}
-
-func (m *Model) PageUpFromPath() bool {
-	return false
-}
-
-func (m *Model) PageUpFromDiff() bool {
-	if m.Cursor.ElemType != DiffElem {
-		return false
-	}
-
-	// Try to move up 10 diff lines
-	if m.Cursor.DiffLine >= pageSize {
-		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine-pageSize)
-		return true
-	}
-
-	// Less than 10 lines up, go to current path
-	m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx, 0)
-	return true
-}
-
-func (m *Model) PageDownFromHeader() bool {
-	return false
-}
-
-func (m *Model) PageDownFromPath() bool {
-	return false
-}
-
-func (m *Model) PageDownFromDiff() bool {
-	if m.Cursor.ElemType != DiffElem {
-		return false
-	}
-
-	ps, err := m.SvnService.GetPathStatus(m.Cursor.Section, m.Cursor.PathIdx)
-	if err != nil {
-		return false
-	}
-	diffLines := m.SvnService.GetDiff(ps.Path)
-
-	// Try to move down 10 diff lines
-	if m.Cursor.DiffLine+pageSize < len(diffLines) {
-		m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, m.Cursor.DiffLine+pageSize)
-		return true
-	}
-
-	// Less than 10 lines down, go to next path or next section
-	rs := m.SvnService.CurrentStatus()
-	if m.Cursor.PathIdx < rs.Len(m.Cursor.Section)-1 {
-		m.Cursor.Set(PathElem, m.Cursor.Section, m.Cursor.PathIdx+1, 0)
-		return true
-	}
-
-	// No next path, go to next section header
-	if next, ok := rs.NextNonEmptySection(m.Cursor.Section); ok {
-		m.Cursor.Set(HeaderElem, next, 0, 0)
-		return true
-	}
-
-	// No next path or next section header. Go to bottom of current diff
-	m.Cursor.Set(DiffElem, m.Cursor.Section, m.Cursor.PathIdx, len(diffLines)-1)
-	return false
+	return moved
 }
 
 func (m *Model) ClampCursor() {
