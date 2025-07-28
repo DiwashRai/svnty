@@ -663,7 +663,7 @@ func (m *Model) Up() bool {
 
 func (m *Model) PageUp() bool {
 	moved := false
-	for i := 0; i < pageSize; i++ {
+	for range pageSize {
 		if m.Up() {
 			moved = true
 		} else {
@@ -675,7 +675,7 @@ func (m *Model) PageUp() bool {
 
 func (m *Model) PageDown() bool {
 	moved := false
-	for i := 0; i < pageSize; i++ {
+	for range pageSize {
 		if m.Down() {
 			moved = true
 		} else {
