@@ -162,11 +162,16 @@ func (m *Model) View() string {
 		BorderBottom(true).
 		Render(m.textarea.View())
 
+	var historyList string
+	if len(m.msglist.Items()) > 0 {
+		historyList = m.msglist.View()
+	}
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		commitTop,
 		commitPanel,
-		m.msglist.View(),
+		historyList,
 	)
 }
 
