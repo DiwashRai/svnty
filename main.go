@@ -8,7 +8,7 @@ import (
 	"github.com/DiwashRai/svnty/svn"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 func main() {

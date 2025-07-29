@@ -11,10 +11,10 @@ import (
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/DiwashRai/svnty/tui"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/v2/list"
+	"github.com/charmbracelet/bubbles/v2/textarea"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 const (
@@ -106,7 +106,7 @@ func (m *Model) Init() tea.Cmd {
 	ti := textarea.New()
 	ti.ShowLineNumbers = true
 	ti.Prompt = ""
-	ti.FocusedStyle, ti.BlurredStyle = getTextAreaStyle()
+	ti.Styles.Focused, ti.Styles.Blurred = getTextAreaStyle()
 
 	ti.SetWidth(commitPanelWidth)
 	ti.SetHeight(8)
@@ -216,8 +216,8 @@ func (m *Model) SaveDraft() {
 	m.CommitHistory.SaveToFile()
 }
 
-func getTextAreaStyle() (textarea.Style, textarea.Style) {
-	focused := textarea.Style{
+func getTextAreaStyle() (textarea.StyleState, textarea.StyleState) {
+	focused := textarea.StyleState{
 		Base:             styles.BaseStyle,
 		CursorLine:       styles.BaseStyle.Background(lipgloss.Color(styles.BgSelected)),
 		CursorLineNumber: styles.BaseStyle.Foreground(lipgloss.Color(styles.SpecialColor)),
@@ -228,7 +228,7 @@ func getTextAreaStyle() (textarea.Style, textarea.Style) {
 		Text:             styles.BaseStyle,
 	}
 	// currently unused
-	blurred := textarea.Style{
+	blurred := textarea.StyleState{
 		Base:             styles.BaseStyle,
 		CursorLine:       styles.BaseStyle.Background(lipgloss.Color(styles.BgSelected)),
 		CursorLineNumber: styles.BaseStyle.Foreground(lipgloss.Color(styles.SpecialColor)),
