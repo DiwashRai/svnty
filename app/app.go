@@ -1,6 +1,7 @@
 package app
 
 import (
+	"image/color"
 	"log/slog"
 	"reflect"
 
@@ -62,6 +63,7 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		status.FetchInfoCmd(m.SvnService),
 		status.FetchStatusCmd(m.SvnService),
+		tea.SetBackgroundColor(color.RGBA{R: 31, G: 31, B: 40, A: 255}),
 	)
 }
 
