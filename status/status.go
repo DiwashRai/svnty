@@ -153,6 +153,8 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			return m.Unstage()
 		case "=":
 			return m.Diff()
+		case "ctrl+p":
+			return m.UpdateWorkingCopy()
 		case "enter":
 			return m.ToggleSectionExpand()
 		}
@@ -491,6 +493,17 @@ func (m *Model) Diff() tea.Cmd {
 		return nil
 	}
 	return ToggleDiffExpandCmd(m)
+}
+
+func (m *Model) UpdateWorkingCopy() tea.Cmd {
+	m.Logger.Info("StatusModel.Update() called")
+	return func() tea.Msg {
+		err := m.SvnService.Update()
+		if err != nil {
+			return tui.RenderErrorMsg(err)
+		}
+		return tui.UpdateSuccessMsg{}
+	}
 }
 
 func (m *Model) ToggleSectionExpand() tea.Cmd {

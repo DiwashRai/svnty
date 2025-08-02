@@ -17,6 +17,7 @@ type Service interface {
 	FetchHeadRevision() error
 	CurrentStatus() *RepoStatus
 	FetchStatus() error
+	Update() error
 	StagePath(string) error
 	UnstagePath(string) error
 	FetchDiff(string) error
@@ -151,6 +152,18 @@ func (svc *RealService) FetchStatus() error {
 		}
 	}
 
+	return nil
+}
+
+func (svc *RealService) Update() error {
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"update", svc.WorkingCopyPath)
+
+	_, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("error running svn update: %w", err)
+	}
 	return nil
 }
 

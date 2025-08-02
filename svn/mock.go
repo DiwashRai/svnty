@@ -30,6 +30,10 @@ func (svc *MockService) FetchStatus() error {
 	return nil
 }
 
+func (svc *MockService) Update() error {
+	return nil
+}
+
 func (svc *MockService) StagePath(path string) error {
 	return nil
 }
