@@ -23,7 +23,7 @@ const (
 )
 
 const (
-	HeadRevisionPollDuration = 15
+	headRevisionPollDuration = 15
 )
 
 type Model struct {
@@ -67,7 +67,7 @@ func (m *Model) Init() tea.Cmd {
 		status.FetchInfoCmd(m.SvnService),
 		status.FetchStatusCmd(m.SvnService),
 		tea.SetBackgroundColor(styles.SumiInkRGBA),
-		tui.HeadRevisionTicker(HeadRevisionPollDuration),
+		tui.HeadRevisionTicker(0),
 	)
 }
 
@@ -92,20 +92,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.CommitSuccessMsg:
 		return m, tea.Batch(tui.FetchStatus, tui.StatusMode)
 	case tui.UpdateSuccessMsg:
-		return m, tui.FetchStatus
+		return m, tea.Batch(tui.FetchStatus, tui.FetchInfo)
 	case tui.QuitMsg:
 		m.CommitModel.SaveDraft()
 		return m, tea.Quit
 	case tui.FetchStatusMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
+	case tui.FetchInfoMsg:
+		return m, status.FetchInfoCmd(m.SvnService)
 	case tui.FetchHeadRevisionMsg:
 		cmd = status.FetchHeadRevisionCmd(m.SvnService)
 		return m, cmd
 	case tui.HeadRevisionTickMsg:
 		return m, tea.Batch(
 			status.FetchHeadRevisionCmd(m.SvnService),
-			tui.HeadRevisionTicker(HeadRevisionPollDuration),
+			tui.HeadRevisionTicker(headRevisionPollDuration),
 		)
 	case tui.RefreshStatusPanelMsg:
 		cmd = m.StatusModel.Update(msg)
