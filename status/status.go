@@ -376,6 +376,15 @@ func FetchStatusCmd(s svn.Service) tea.Cmd {
 	}
 }
 
+func FetchHeadRevisionCmd(s svn.Service) tea.Cmd {
+	return func() tea.Msg {
+		if err := s.FetchHeadRevision(); err != nil {
+			return tui.RenderErrorMsg(err)
+		}
+		return tui.RefreshInfoMsg{}
+	}
+}
+
 func RefreshStatusPanelCmd(m *Model) tea.Cmd {
 	return func() tea.Msg {
 		m.RefreshStatusPanel()

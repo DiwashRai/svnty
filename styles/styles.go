@@ -80,6 +80,9 @@ var (
 			Bold(true).
 			Foreground(lipgloss.Color(KeywordColor))
 
+	InfoWarning = BaseStyle.
+			Foreground(lipgloss.Color(waveRed))
+
 	// Status panel
 	StatusSectionHeading = BaseStyle.
 				Bold(true).
