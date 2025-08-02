@@ -380,6 +380,12 @@ func FetchStatusCmd(s svn.Service) tea.Cmd {
 
 func FetchHeadRevisionCmd(s svn.Service) tea.Cmd {
 	return func() tea.Msg {
+		// no need to fetch head revision if we're already out of date anyways
+		// we can only be even more out of date
+		if s.IsOutOfDate() {
+			return nil
+		}
+
 		if err := s.FetchHeadRevision(); err != nil {
 			return tui.RenderErrorMsg(err)
 		}
