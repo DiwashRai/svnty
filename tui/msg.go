@@ -18,6 +18,7 @@ type RefreshStatusPanelMsg struct{}
 
 type RenderErrorMsg error
 type CommitSuccessMsg struct{}
+type UpdateSuccessMsg struct{}
 type QuitMsg struct{}
 
 type HeadRevisionTickMsg struct{}

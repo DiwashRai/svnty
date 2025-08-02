@@ -90,6 +90,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tui.CommitSuccessMsg:
 		return m, tea.Batch(tui.FetchStatus, tui.StatusMode)
+	case tui.UpdateSuccessMsg:
+		return m, tui.FetchStatus
 	case tui.QuitMsg:
 		m.CommitModel.SaveDraft()
 		return m, tea.Quit
