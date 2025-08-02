@@ -22,6 +22,10 @@ const (
 	CommitMode
 )
 
+const (
+	HeadRevisionPollDuration = 15
+)
+
 type Model struct {
 	SvnService  svn.Service
 	Logger      *slog.Logger
@@ -63,6 +67,7 @@ func (m *Model) Init() tea.Cmd {
 		status.FetchInfoCmd(m.SvnService),
 		status.FetchStatusCmd(m.SvnService),
 		tea.SetBackgroundColor(styles.SumiInkRGBA),
+		tui.HeadRevisionTicker(HeadRevisionPollDuration),
 	)
 }
 
@@ -92,6 +97,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tui.FetchStatusMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd
+	case tui.FetchHeadRevisionMsg:
+		cmd = status.FetchHeadRevisionCmd(m.SvnService)
+		return m, cmd
+	case tui.HeadRevisionTickMsg:
+		return m, tea.Batch(
+			status.FetchHeadRevisionCmd(m.SvnService),
+			tui.HeadRevisionTicker(HeadRevisionPollDuration),
+		)
 	case tui.RefreshStatusPanelMsg:
 		cmd = m.StatusModel.Update(msg)
 		return m, cmd

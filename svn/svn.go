@@ -14,6 +14,7 @@ type Service interface {
 	Init()
 	CurrentInfo() RepoInfo
 	FetchInfo() error
+	FetchHeadRevision() error
 	CurrentStatus() *RepoStatus
 	FetchStatus() error
 	StagePath(string) error
@@ -22,6 +23,7 @@ type Service interface {
 	GetDiff(string) []string
 	GetPathStatus(SectionIdx, int) (PathStatus, error)
 	CommitStaged(string) error
+	IsOutOfDate() bool
 }
 
 type RealService struct {
@@ -65,6 +67,26 @@ func (svc *RealService) FetchInfo() error {
 	svc.RepoInfo.WorkingPath = infoXML.Entry.WCInfo.WCAbspath
 	svc.RepoInfo.RemoteURL = infoXML.Entry.URL
 	svc.RepoInfo.Revision = infoXML.Entry.Revision
+
+	return nil
+}
+
+func (svc *RealService) FetchHeadRevision() error {
+	cmd := exec.Command(
+		"svn", "--non-interactive",
+		"info", "-r", "HEAD", svc.WorkingCopyPath, "--xml")
+
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("Error running svn info -r HEAD: %w", err)
+	}
+
+	var infoXML InfoXML
+	if err := xml.Unmarshal(out, &infoXML); err != nil {
+		return fmt.Errorf("error unmarshalling svn info HEAD: %w", err)
+	}
+
+	svc.RepoInfo.HeadRevision = infoXML.Entry.Revision
 
 	return nil
 }
@@ -253,6 +275,10 @@ func (svc *RealService) CommitStaged(msg string) error {
 	return nil
 }
 
+func (svc *RealService) IsOutOfDate() bool {
+	return svc.RepoInfo.Revision < svc.RepoInfo.HeadRevision
+}
+
 func StatusToRune(status string) (rune, bool) {
 	switch status {
 	case "added":
@@ -422,9 +448,10 @@ type WCStatusXML struct {
 // SVN INFO XML Structs
 
 type RepoInfo struct {
-	WorkingPath string
-	RemoteURL   string
-	Revision    uint32
+	WorkingPath  string
+	RemoteURL    string
+	Revision     uint32
+	HeadRevision uint32
 }
 
 type InfoXML struct {

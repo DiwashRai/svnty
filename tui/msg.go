@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
@@ -9,6 +11,7 @@ type CommitModeMsg struct{}
 
 type FetchInfoMsg struct{}
 type FetchStatusMsg struct{}
+type FetchHeadRevisionMsg struct{}
 
 type RefreshInfoMsg struct{}
 type RefreshStatusPanelMsg struct{}
@@ -16,6 +19,8 @@ type RefreshStatusPanelMsg struct{}
 type RenderErrorMsg error
 type CommitSuccessMsg struct{}
 type QuitMsg struct{}
+
+type HeadRevisionTickMsg struct{}
 
 func StatusMode() tea.Msg {
 	return StatusModeMsg{}
@@ -40,4 +45,14 @@ func RefreshStatusPanel() tea.Msg {
 
 func Quit() tea.Msg {
 	return QuitMsg{}
+}
+
+func FetchHeadRevision() tea.Msg {
+	return FetchHeadRevisionMsg{}
+}
+
+func HeadRevisionTicker(sec int) tea.Cmd {
+	return tea.Tick(time.Duration(sec)*time.Second, func(t time.Time) tea.Msg {
+		return HeadRevisionTickMsg{}
+	})
 }

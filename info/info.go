@@ -30,12 +30,19 @@ func (m *Model) View() string {
 	info := m.SvnService.CurrentInfo()
 	wp, url, rev := info.WorkingPath, info.RemoteURL, strconv.FormatUint(uint64(info.Revision), 10)
 
+	var revisionLine string
+	if m.SvnService.IsOutOfDate() {
+		revisionLine = styles.Gutter + styles.InfoHeading.Render("Revision:     ") + styles.Number.Render(rev) + styles.InfoWarning.Render(" (out of date)")
+	} else {
+		revisionLine = styles.Gutter + styles.InfoHeading.Render("Revision:     ") + styles.Number.Render(rev)
+	}
+
 	return tui.JoinVerticalStyled(
 		lipgloss.Left,
 		styles.BaseStyle,
 		styles.Gutter+styles.InfoHeading.Render("Working path: ")+styles.BaseStyle.Render(wp),
 		styles.Gutter+styles.InfoHeading.Render("Remote URL:   ")+styles.BaseStyle.Render(url),
-		styles.Gutter+styles.InfoHeading.Render("Revision:     ")+styles.Number.Render(rev),
+		revisionLine,
 		styles.Gutter,
 	)
 }
