@@ -1,6 +1,7 @@
 package styles
 
 import (
+	"image/color"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss/v2"
@@ -48,6 +49,9 @@ const (
 )
 
 var (
+	// RGBA colors
+	SumiInkRGBA = color.RGBA{R: 31, G: 31, B: 40, A: 255}
+
 	BaseStyle = lipgloss.NewStyle().
 			Background(lipgloss.Color(BgColor)).
 			Foreground(lipgloss.Color(FgColor))
