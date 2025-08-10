@@ -1,6 +1,7 @@
 package status
 
 import (
+	"fmt"
 	"log/slog"
 	"reflect"
 	"strconv"
@@ -10,6 +11,8 @@ import (
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/DiwashRai/svnty/tui"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -26,6 +29,53 @@ const (
 const (
 	pageSize = 10 // for page up/down navigation
 )
+
+type keyMap struct {
+	Up         key.Binding
+	Down       key.Binding
+	PageUp     key.Binding
+	PageDown   key.Binding
+	Quit       key.Binding
+	CommitMode key.Binding
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Up, k.Down, k.PageUp, k.PageDown}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Up, k.Down, k.PageUp, k.PageDown},
+		{k.CommitMode, k.Quit},
+	}
+}
+
+var keys = keyMap{
+	Up: key.NewBinding(
+		key.WithKeys("up", "k"),
+		key.WithHelp("↑/k", "move up"),
+	),
+	Down: key.NewBinding(
+		key.WithKeys("down", "j"),
+		key.WithHelp("↓/j", "move down"),
+	),
+	PageUp: key.NewBinding(
+		key.WithKeys("pgup", "ctrl+k"),
+		key.WithHelp("←/h", "move left"),
+	),
+	PageDown: key.NewBinding(
+		key.WithKeys("pgdown", "ctrl+j"),
+		key.WithHelp("→/l", "move right"),
+	),
+	CommitMode: key.NewBinding(
+		key.WithKeys("c"),
+		key.WithHelp("c", "commit mode"),
+	),
+	Quit: key.NewBinding(
+		key.WithKeys("q", "esc", "ctrl+c"),
+		key.WithHelp("q", "quit"),
+	),
+}
 
 type Element struct {
 	Type      ElementType
@@ -100,6 +150,8 @@ type Model struct {
 	Errs       []string
 	Lines      []string
 	Expanded   Expanded
+	keys       keyMap
+	help       help.Model
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -111,6 +163,11 @@ func (m *Model) Init() tea.Cmd {
 	m.Expanded.SetSection(svn.SectionUnversioned, false)
 	m.Expanded.Init()
 
+	m.keys = keys
+	m.help = help.New()
+	m.help.Styles.ShortKey = styles.HelpStyle
+	m.help.Styles.ShortDesc = styles.HelpStyle
+
 	return nil
 }
 
@@ -120,7 +177,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.Width = msg.Width
-		m.Height = msg.Height - 6 // info panel size 4 + 1 padding top
+		m.Height = msg.Height - 5 // info panel size 4 + 1 padding top
 	case tui.FetchStatusMsg:
 		return FetchStatusCmd(m.SvnService)
 	case tui.RefreshStatusPanelMsg:
@@ -206,16 +263,16 @@ func (m *Model) truncateIfNeeded(content string) string {
 	return content[:availableWidth-3] + "..."
 }
 
-func (m *Model) visibleLines(cursorIdx, padding int) (lines []string) {
+func (m *Model) visibleLines(cursorIdx, padding, height int) (lines []string) {
 	if cursorIdx-padding < m.YOffset {
 		m.YOffset = max(0, cursorIdx-padding)
-	} else if cursorIdx+padding >= m.YOffset+m.Height {
-		m.YOffset = min(len(m.Lines)-m.Height, (cursorIdx-(m.Height-1))+2)
+	} else if cursorIdx+padding >= m.YOffset+height {
+		m.YOffset = min(len(m.Lines)-height, (cursorIdx-(height-1))+2)
 	}
 
 	if len(m.Lines) > 0 {
 		top := max(0, m.YOffset)
-		bottom := clamp(m.YOffset+m.Height, top, len(m.Lines))
+		bottom := clamp(m.YOffset+height, top, len(m.Lines))
 		lines = m.Lines[top:bottom]
 	}
 	return lines
@@ -286,7 +343,16 @@ func (m *Model) View() string {
 		}
 		m.Lines = append(m.Lines, b.String())
 	}
-	return strings.Join(m.visibleLines(cursorIdx, styles.ScrollPadding), "\n")
+
+	displayLines := make([]string, m.Height)
+	lines := m.visibleLines(cursorIdx, styles.ScrollPadding, m.Height-1) // space for footer
+	//m.Logger.Info(fmt.Sprintf("%s %s", "visible lines length =", len(lines)))
+	copy(displayLines, lines)
+	if m.Height > 0 {
+		helpStr := m.help.View(m.keys)
+		displayLines[m.Height-1] = fmt.Sprintf("%s %s", styles.FooterPrefix, helpStr)
+	}
+	return strings.Join(displayLines, "\n")
 }
 
 func (m *Model) RefreshStatusPanel() {
