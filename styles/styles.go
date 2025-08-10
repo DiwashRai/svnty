@@ -27,6 +27,8 @@ const (
 	autumnGreen  = "#76946A" // kanagawa: vcs added
 	autumnRed    = "#C34043" // kanagawa: vcs removed
 
+	helpStrColor = "#9B9A92" // fujiGray made brighter
+
 	// semantic color assignments
 	BgColor         = sumiInk3
 	BgAltColor      = sumiInk4
@@ -78,6 +80,9 @@ var (
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(waveAqua2)).
 			BorderBackground(lipgloss.Color(BgColor))
+
+	HelpStyle = BaseStyle.
+			Foreground(lipgloss.Color(helpStrColor))
 
 	// Info panel
 	InfoHeading = BaseStyle.
@@ -143,6 +148,12 @@ var (
 	SelCollapsedHeader = Comment.
 				Background(lipgloss.Color(BgSelected)).
 				Render("▶ ")
+
+	ModeStyle = BaseStyle.
+			Background(lipgloss.Color("#b8bb26")).
+			Foreground(lipgloss.Color(BgColor)).
+			Bold(true)
+	FooterPrefix = ModeStyle.Render(" Svnty ")
 )
 
 func GetBorderTopWithTitle(title string, width int) string {

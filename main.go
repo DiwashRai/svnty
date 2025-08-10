@@ -12,8 +12,9 @@ import (
 )
 
 func main() {
-	//workingCopyPath := flag.String("path", "C:/Code/GitHub/textual-test/", "path of svn repo")
-	workingCopyPath := flag.String("path", ".", "path of svn repo")
+	workingCopyPath := flag.String("path", "C:/Code/GitHub/textual-test/", "path of svn repo")
+	//workingCopyPath := flag.String("path", ".", "path of svn repo")
+	//workingCopyPath := flag.String("path", "C:/Projects/svn-checkouts/textual-test", "path of svn repo")
 	useMock := flag.Bool("mock", false, "use mocked SVN data")
 	logPath := flag.String("log", "", "write logs to this file")
 	flag.Parse()
