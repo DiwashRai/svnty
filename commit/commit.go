@@ -53,7 +53,7 @@ func (i ItemType) FilterValue() string { return i.FullMessage }
 func NewItem(msg string) list.Item {
 	displayText := strings.ReplaceAll(msg, "\n", " ")
 	if len(displayText) > maxDisplayLength {
-		displayText = displayText[:maxDisplayLength-3] + "..."
+		displayText = displayText[:maxDisplayLength-4] + "..."
 	}
 	return ItemType{
 		DisplayText: displayText,
@@ -80,7 +80,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, li.DisplayText)
+	str := fmt.Sprintf("%2d. %s", index+1, li.DisplayText)
 
 	fn := itemStyle.Render
 	if index == m.Index() {

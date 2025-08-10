@@ -165,8 +165,14 @@ func (m *Model) Init() tea.Cmd {
 
 	m.keys = keys
 	m.help = help.New()
+
+	m.help.Styles.Ellipsis = styles.HelpStyle
 	m.help.Styles.ShortKey = styles.HelpStyle
 	m.help.Styles.ShortDesc = styles.HelpStyle
+	m.help.Styles.ShortSeparator = styles.HelpStyle
+	m.help.Styles.FullKey = styles.HelpStyle
+	m.help.Styles.FullDesc = styles.HelpStyle
+	m.help.Styles.FullSeparator = styles.HelpStyle
 
 	return nil
 }
@@ -346,11 +352,11 @@ func (m *Model) View() string {
 
 	displayLines := make([]string, m.Height)
 	lines := m.visibleLines(cursorIdx, styles.ScrollPadding, m.Height-1) // space for footer
-	//m.Logger.Info(fmt.Sprintf("%s %s", "visible lines length =", len(lines)))
 	copy(displayLines, lines)
 	if m.Height > 0 {
-		helpStr := m.help.View(m.keys)
-		displayLines[m.Height-1] = fmt.Sprintf("%s %s", styles.FooterPrefix, helpStr)
+		helpStr := tui.NoInnerResets(m.help.View(m.keys))
+		displayLines[m.Height-1] = fmt.Sprintf("%s%s%s",
+			styles.FooterPrefix, styles.BaseStyle.Render(" "), helpStr)
 	}
 	return strings.Join(displayLines, "\n")
 }

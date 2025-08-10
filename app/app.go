@@ -66,7 +66,7 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		status.FetchInfoCmd(m.SvnService),
 		status.FetchStatusCmd(m.SvnService),
-		tui.HeadRevisionTicker(HeadRevisionPollDuration),
+		tui.HeadRevisionTicker(headRevisionPollDuration),
 		tui.HeadRevisionTicker(0),
 	)
 }

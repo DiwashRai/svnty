@@ -2,11 +2,20 @@ package tui
 
 import (
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
+
+var reReset = regexp.MustCompile(`\x1b\[0m`)
+
+// NoInnerResets removes all inner ANSI reset sequences from a string
+// and adds a single reset sequence at the end.
+func NoInnerResets(s string) string {
+	return reReset.ReplaceAllString(s, "") + "\x1b[0m"
+}
 
 func getLines(s string) (lines []string, widest int) {
 	lines = strings.Split(s, "\n")
