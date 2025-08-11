@@ -80,6 +80,9 @@ var (
 	HelpStyle = BaseStyle.
 			Foreground(lipgloss.Color(helpStrColor))
 
+	SpinnerStyle = BaseStyle.
+			Foreground(lipgloss.Color(springGreen))
+
 	// Info panel
 	InfoHeading = BaseStyle.
 			Bold(true).
@@ -150,6 +153,8 @@ var (
 			Foreground(lipgloss.Color(BgColor)).
 			Bold(true)
 	FooterPrefix = ModeStyle.Render(" Svnty ")
+
+	SpinnerLeftPadding = BaseStyle.Render("    ")
 )
 
 func GetBorderTopWithTitle(title string, width int) string {

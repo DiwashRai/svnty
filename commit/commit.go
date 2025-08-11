@@ -12,6 +12,7 @@ import (
 	"github.com/DiwashRai/svnty/tui"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -41,6 +42,8 @@ type Model struct {
 	msglist       list.Model
 	Mode          CommitMode
 	CommitHistory svn.CommitHistory
+	spinner       spinner.Model
+	isCommitting  bool
 }
 
 type ItemType struct {
@@ -120,6 +123,10 @@ func (m *Model) Init() tea.Cmd {
 	historyList.SetShowHelp(false)
 	m.msglist = historyList
 
+	m.spinner = spinner.New()
+	m.spinner.Style = styles.SpinnerStyle
+	m.spinner.Spinner = spinner.MiniDot
+
 	return nil
 }
 
@@ -128,6 +135,13 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case spinner.TickMsg:
+		var spinnerCmd tea.Cmd
+		m.spinner, spinnerCmd = m.spinner.Update(msg)
+		if m.isCommitting {
+			return spinnerCmd
+		}
+		return nil
 	case tea.KeyMsg:
 		keyStr := msg.String()
 		switch keyStr {
@@ -139,6 +153,12 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			m.msglist.CursorUp()
 		case "down", "ctrl+j":
 			m.msglist.CursorDown()
+		case "ctrl+b":
+			m.isCommitting = !m.isCommitting
+			if m.isCommitting {
+				return spinner.Tick
+			}
+			return nil
 		case "tab":
 			if selectedItem, ok := m.msglist.SelectedItem().(ItemType); ok {
 				m.textarea.SetValue(m.textarea.Value() + selectedItem.FullMessage)
@@ -162,16 +182,26 @@ func (m *Model) View() string {
 		BorderBottom(true).
 		Render(m.textarea.View())
 
-	var historyList string
-	if len(m.msglist.Items()) > 0 {
-		historyList = m.msglist.View()
+	var bottomPanel string
+	if m.isCommitting {
+		bottomPanel = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			styles.SpinnerLeftPadding,
+			m.spinner.View(),
+			styles.BaseStyle.Render(" Committing changes..."),
+		)
+		bottomPanel = bottomPanel[:len(bottomPanel)-4] // remove terminal reset code
+	} else {
+		if len(m.msglist.Items()) > 0 {
+			bottomPanel = m.msglist.View()
+		}
 	}
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		commitTop,
 		commitPanel,
-		historyList,
+		bottomPanel,
 	)
 }
 
@@ -190,6 +220,7 @@ func sanitizeMessage(msg string) string {
 func CommitStagedCmd(m *Model) tea.Cmd {
 	return func() tea.Msg {
 		err := m.SvnService.CommitStaged(m.textarea.Value())
+		m.isCommitting = false
 		if err != nil {
 			return tui.RenderErrorMsg(err)
 		}
@@ -203,7 +234,8 @@ func CommitStagedCmd(m *Model) tea.Cmd {
 }
 
 func (m *Model) Submit() tea.Cmd {
-	return CommitStagedCmd(m)
+	m.isCommitting = true
+	return tea.Batch(CommitStagedCmd(m), spinner.Tick)
 }
 
 func (m *Model) SaveDraft() {

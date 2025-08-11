@@ -11,6 +11,7 @@ import (
 	"github.com/DiwashRai/svnty/svn"
 	"github.com/DiwashRai/svnty/tui"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -114,6 +115,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	case tui.RenderErrorMsg:
 		cmd = m.StatusModel.Update(msg)
+		return m, cmd
+	case spinner.TickMsg:
+		cmd = m.CommitModel.Update(msg)
 		return m, cmd
 	case tea.KeyMsg:
 		keyStr := msg.String()
